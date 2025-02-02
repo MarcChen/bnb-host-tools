@@ -11,83 +11,129 @@ from services.oauth_credentials.authentification import (
     print_token_ttl,
 )
 
-# Initialize the credentials
-token_path = os.getenv("TOKEN_PATH")
-creds = load_credentials(token_path)
+class CalendarService:
+    def __init__(self, calendar_summary="Airbnb réservation | Airbnb 预订"):
+        # Authenticate and build calendar service
+        token_path = os.getenv("TOKEN_PATH")
+        creds = load_credentials(token_path)
+        creds = refresh_access_token(creds, token_path)
+        print_token_ttl(creds)
+        self.service = build("calendar", "v3", credentials=creds)
+        # Select calendar by its summary
+        calendar_list = self.service.calendarList().list().execute()
+        calendars = calendar_list.get("items", [])
+        self.calendar_id = None
+        for calendar in calendars:
+            if calendar.get("summary") == calendar_summary:
+                self.calendar_id = calendar.get("id")
+                break
+        if not self.calendar_id:
+            raise ValueError(f"Calendar '{calendar_summary}' not found.")
 
-# Refresh the token if necessary
-creds = refresh_access_token(creds, token_path)
+    def create_event(self, start_time, end_time, person_name, reservation_code, location, adults, children=None, country="France", attendees=None):
+        # Create event title and description based on reservation details.
+        event_summary = f"{person_name} - {reservation_code}"
+        description_en = f"Reservation by {person_name} from {country}. Adults: {adults}"
+        if children is not None:
+            description_en += f", Children: {children}"
+        description_cn = f"{person_name} 的预订，来自 {country}。成人: {adults}"
+        if children is not None:
+            description_cn += f"，儿童: {children}"
+        description = description_en + "\n----\n" + description_cn
+        event = {
+            "summary": event_summary,
+            "location": location,
+            "description": description,
+            "start": {"dateTime": start_time.isoformat(), "timeZone": "UTC"},
+            "end": {"dateTime": end_time.isoformat(), "timeZone": "UTC"},
+            "reminders": {
+            "useDefault": False,
+            "overrides": [
+                {"method": "email", "minutes": 24 * 60},
+                {"method": "popup", "minutes": 10},
+            ],
+            },
+        }
+        # Add attendees if provided.
+        if attendees is not None:
+            event["attendees"] = [{"email": email} for email in attendees]
+        try:
+            created_event = self.service.events().insert(
+                calendarId=self.calendar_id, body=event
+            ).execute()
+            print(f"Event created: {created_event.get('htmlLink')}")
+            return created_event
+        except HttpError as error:
+            print(f"An error occurred: {error}")
 
-# Print the TTL of the token
-print_token_ttl(creds)
+    def retrieve_events(self, future=True):
+        # Retrieve events: if future is True, list events from now onwards; otherwise, past events.
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        try:
+            if future:
+                events_result = self.service.events().list(
+                    calendarId=self.calendar_id,
+                    timeMin=now,
+                    singleEvents=True,
+                    orderBy="startTime"
+                ).execute()
+            else:
+                events_result = self.service.events().list(
+                    calendarId=self.calendar_id,
+                    timeMax=now,
+                    singleEvents=True,
+                    orderBy="startTime"
+                ).execute()
+            events = events_result.get("items", [])
+            return events
+        except HttpError as error:
+            print(f"An error occurred: {error}")
+            return []
 
-# Initialize the Google Calendar API service
-try:
-    service = build("calendar", "v3", credentials=creds)
+    def delete_event(self, reservation_code):
+        # Delete events by filtering events with the given reservation code in their summary.
+        try:
+            events_result = self.service.events().list(
+                calendarId=self.calendar_id,
+                singleEvents=True
+            ).execute()
+            events = events_result.get("items", [])
+            deleted = False
+            for event in events:
+                if reservation_code in event.get("summary", ""):
+                    self.service.events().delete(
+                        calendarId=self.calendar_id, eventId=event.get("id")
+                    ).execute()
+                    print(f"Deleted event: {event.get('summary')}")
+                    deleted = True
+            if not deleted:
+                print(f"No event found with reservation code: {reservation_code}")
+        except HttpError as error:
+            print(f"An error occurred: {error}")
 
-    # Retrieve the list of calendars
-    calendar_list = service.calendarList().list().execute()
-    calendars = calendar_list.get("items", [])
-
-    # Example of selecting a different calendar (by its ID or summary)
-    calendar_id = None
-    calendar_summary = (
-        "Airbnb réservation | Airbnb 预订"  # Change this to the desired calendar name
+if __name__ == '__main__':
+    # Test the CalendarService functionalities
+    svc = CalendarService()
+    # Set test start and end times.
+    start = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
+    end = start + datetime.timedelta(hours=2)
+    # Test: Create an event with reservation details.
+    print("Creating event...")
+    svc.create_event(
+        start_time=start,
+        end_time=end,
+        person_name="John Doe",
+        reservation_code="ABC123",
+        location="23 Villa Curial",
+        adults=2,
+        children=1,
+        # attendees=["chen987415@gmail.com"]
     )
-    for calendar in calendars:
-        if calendar["summary"] == calendar_summary:
-            calendar_id = calendar["id"]
-            break
-
-    if not calendar_id:
-        print(f"Calendar '{calendar_summary}' not found.")
-    else:
-        # Example of adding an event to the selected calendar
-        summary = "Sample Event"
-        location = "Online"
-        description = "This is a sample event."
-        start_time = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        end_time = (
-            datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1)
-        ).isoformat()
-
-        def add_event(
-            service, calendar_id, summary, location, description, start_time, end_time
-        ):
-            event = {
-                "summary": summary,
-                "location": location,
-                "description": description,
-                "start": {
-                    "dateTime": start_time,
-                    "timeZone": "UTC",
-                },
-                "end": {
-                    "dateTime": end_time,
-                    "timeZone": "UTC",
-                },
-                "reminders": {
-                    "useDefault": False,
-                    "overrides": [
-                        {"method": "email", "minutes": 24 * 60},
-                        {"method": "popup", "minutes": 10},
-                    ],
-                },
-            }
-
-            try:
-                event = (
-                    service.events()
-                    .insert(calendarId=calendar_id, body=event)
-                    .execute()
-                )
-                print(f"Event created: {event.get('htmlLink')}")
-            except HttpError as error:
-                print(f"An error occurred: {error}")
-
-        add_event(
-            service, calendar_id, summary, location, description, start_time, end_time
-        )
-
-except HttpError as error:
-    print(f"An error occurred: {error}")
+    # Test: Retrieve future events.
+    print("Retrieving future events...")
+    future_events = svc.retrieve_events(future=True)
+    for event in future_events:
+        print(event.get("summary"))
+    # Test: Delete event by reservation code.
+    print("Deleting event with reservation code 'ABC123'...")
+    # svc.delete_event("ABC123")
