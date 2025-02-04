@@ -5,7 +5,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 # Import auth functions
-from services.oauth_credentials.authentification import (
+from oauth_credentials.authentification import (
     load_credentials,
     refresh_access_token,
     print_token_ttl,
