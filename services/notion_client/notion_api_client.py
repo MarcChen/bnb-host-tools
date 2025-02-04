@@ -1,53 +1,87 @@
 import os
+from typing import Any, Dict, List, Union, Optional  # Added Optional type
 from notion_client import Client
 
 class NotionClient:
-    def __init__(self):
-        # Initialize client with API key and database id from env variables
+    def __init__(self) -> None:
+        """Initialize client with API key and database id from environment variables."""
         self.token = os.environ.get("NOTION_API_KEY")
         self.database_id = os.environ.get("NOTION_DATABASE_ID")
         self.client = Client(auth=self.token)
 
     def create_page(
-        self, date, arrival_date, departure_date, confirmation_code, cost_per_night,
-        number_of_nights, total_nights_cost, cleaning_fee, guest_service_fee, host_service_fee,
-        tourist_tax, total_paid_by_guest, host_payout, number_of_adults, number_of_children,
-        country_code, full_name, subject
-    ):
-        # Create a new page in the database with the provided properties
-        return self.client.pages.create(
-            parent={"database_id": self.database_id},
-            properties={
-                "Date": {"date": {"start": date}},
-                "Arrival Date": {"date": {"start": arrival_date}},
-                "Departure Date": {"date": {"start": departure_date}},
-                "Confirmation Code": {
-                    "title": [{"text": {"content": confirmation_code}}]
-                },
-                "Cost per Night": {"number": cost_per_night},
-                "Number of Nights": {"number": number_of_nights},
-                "Total Nights Cost": {"number": total_nights_cost},
-                "Cleaning Fee": {"number": cleaning_fee},
-                "Guest Service Fee": {"number": guest_service_fee},
-                "Host Service Fee": {"number": host_service_fee},
-                "Tourist Tax": {"number": tourist_tax},
-                "Total Paid by Guest": {"number": total_paid_by_guest},
-                "Host Payout": {"number": host_payout},
-                "Number of Adults": {"number": number_of_adults},
-                "Number of Children": {"number": number_of_children},
-                "Country Code": {"rich_text": [{"text": {"content": country_code}}]},
-                "Full_Name": {"rich_text": [{"text": {"content": full_name}}]},
-                "Subject": {"rich_text": [{"text": {"content": subject}}]},
-            }
-        )
+        self,
+        date: Optional[str] = None,
+        arrival_date: Optional[str] = None,
+        departure_date: Optional[str] = None,
+        confirmation_code: Optional[str] = None,
+        cost_per_night: Optional[Union[int, float]] = None,
+        number_of_nights: Optional[Union[int, float]] = None,
+        total_nights_cost: Optional[Union[int, float]] = None,
+        cleaning_fee: Optional[Union[int, float]] = None,
+        guest_service_fee: Optional[Union[int, float]] = None,
+        host_service_fee: Optional[Union[int, float]] = None,
+        tourist_tax: Optional[Union[int, float]] = None,
+        total_paid_by_guest: Optional[Union[int, float]] = None,
+        host_payout: Optional[Union[int, float]] = None,
+        number_of_adults: Optional[int] = None,
+        number_of_children: Optional[int] = None,
+        country_code: Optional[str] = None,
+        city: Optional[str] = None,
+        full_name: Optional[str] = None,
+        subject: Optional[str] = None
+    ) -> Any:
+        """Create a new page in the Notion database.
+        Fields with None values are omitted from the page properties.
+        """
+        props = {}
+        if date:
+            props["Date"] = {"date": {"start": date}}
+        if arrival_date:
+            props["Arrival Date"] = {"date": {"start": arrival_date}}
+        if departure_date:
+            props["Departure Date"] = {"date": {"start": departure_date}}
+        if confirmation_code:
+            props["Confirmation Code"] = {"rich_text": [{"text": {"content": confirmation_code}}]}
+        if cost_per_night is not None:
+            props["Cost per Night"] = {"number": cost_per_night}
+        if number_of_nights is not None:
+            props["Number of Nights"] = {"number": number_of_nights}
+        if total_nights_cost is not None:
+            props["Total Nights Cost"] = {"number": total_nights_cost}
+        if cleaning_fee is not None:
+            props["Cleaning Fee"] = {"number": cleaning_fee}
+        if guest_service_fee is not None:
+            props["Guest Service Fee"] = {"number": guest_service_fee}
+        if host_service_fee is not None:
+            props["Host Service Fee"] = {"number": host_service_fee}
+        if tourist_tax is not None:
+            props["Tourist Tax"] = {"number": tourist_tax}
+        if total_paid_by_guest is not None:
+            props["Total Paid by Guest"] = {"number": total_paid_by_guest}
+        if host_payout is not None:
+            props["Host Payout"] = {"number": host_payout}
+        if number_of_adults is not None:
+            props["Number of Adults"] = {"number": number_of_adults}
+        if number_of_children is not None:
+            props["Number of Children"] = {"number": number_of_children}
+        if country_code:
+            props["Country"] = {"select": {"name": country_code}}
+        if city:
+            props["City"] = {"select": {"name": city}}
+        if full_name:
+            props["Name"] = {"title": [{"text": {"content": full_name}}]}
+        if subject:
+            props["Subject"] = {"rich_text": [{"text": {"content": subject}}]}
+        return self.client.pages.create(parent={"database_id": self.database_id}, properties=props)
 
-    def delete_page_by_reservation_code(self, reservation_code):
-        # Find pages by Confirmation Code and archive them (mark as deleted)
+    def delete_page_by_reservation_code(self, reservation_code: str) -> int:
+        """Archive pages matching the confirmation code and return the count."""
         query = self.client.databases.query(
             database_id=self.database_id,
             filter={
                 "property": "Confirmation Code",
-                "title": {
+                "rich_text": {  # Updated filter type
                     "equals": reservation_code
                 }
             }
@@ -57,21 +91,41 @@ class NotionClient:
             self.client.pages.update(page_id=page_id, archived=True)
         return len(query.get("results", []))
 
-    def get_pages_by_reservation_code(self, reservation_code):
-        # Retrieve pages filtered by Confirmation Code
+    def parse_page(self, page: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert a Notion page's properties into a simple dict for easier access."""
+        parsed = {}
+        for key, value in page.get("properties", {}).items():
+            field_type = value.get("type")
+            if field_type in ["rich_text", "title"]:
+                texts = [t.get("plain_text", "") for t in value.get(field_type, [])]
+                parsed[key] = "".join(texts)
+            elif field_type == "number":
+                parsed[key] = value.get("number")
+            elif field_type == "date":
+                date_info = value.get("date") or {}
+                parsed[key] = date_info.get("start")
+            elif field_type == "select":  # Handle select field type
+                parsed[key] = value.get("select", {}).get("name", "")
+            else:
+                parsed[key] = value
+        return parsed
+
+    def get_pages_by_reservation_code(self, reservation_code: str) -> List[Dict[str, Any]]:
+        """Retrieve and parse pages that match the provided confirmation code."""
         query = self.client.databases.query(
             database_id=self.database_id,
             filter={
                 "property": "Confirmation Code",
-                "title": {
+                "rich_text": {
                     "equals": reservation_code
                 }
             }
         )
-        return query.get("results", [])
+        pages = query.get("results", [])
+        return [self.parse_page(page) for page in pages]
 
-    def get_all_pages(self):
-        # Retrieve all pages from the database (may need pagination handling)
+    def get_all_pages(self) -> List[Any]:
+        """Retrieve all pages from the Notion database (pagination not handled)."""
         query = self.client.databases.query(database_id=self.database_id)
         return query.get("results", [])
 
@@ -93,18 +147,9 @@ if __name__ == "__main__":
         "arrival_date": today,
         "departure_date": today,
         "confirmation_code": "TEST123",
-        "cost_per_night": 100,
-        "number_of_nights": 2,
-        "total_nights_cost": 200,
-        "cleaning_fee": 50,
-        "guest_service_fee": 20,
-        "host_service_fee": 15,
-        "tourist_tax": 10,
-        "total_paid_by_guest": 295,
-        "host_payout": 280,
-        "number_of_adults": 2,
         "number_of_children": 1,
         "country_code": "US",
+        "city": "Unknown",
         "full_name": "John Doe",
         "subject": "Reservation Test"
     }

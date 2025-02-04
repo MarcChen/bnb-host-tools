@@ -13,6 +13,20 @@ curl -X PATCH "https://api.notion.com/v1/databases/${NOTION_DATABASE_ID}" \
   -H "Notion-Version: 2022-06-28" \
   -H "Content-Type: application/json" \
   -d '{
+        "title": [
+            {
+                "text": {
+                    "content": "Airbnb Bookings"
+                }
+            }
+        ],
+        "description": [
+        {
+            "text": {
+                "content": "Stores Airbnb booking information 🏠"
+            }
+        }
+    ],
         "properties": {
           "Date": { "date": {} },
           "Arrival Date": { "date": {} },
@@ -29,10 +43,9 @@ curl -X PATCH "https://api.notion.com/v1/databases/${NOTION_DATABASE_ID}" \
           "Host Payout": { "number": {} },
           "Number of Adults": { "number": {} },
           "Number of Children": { "number": {} },
-          "Country Code": { "rich_text": {} },
+          "Country": { "select": {} },
+          "City": { "select": {} },
           "Full_Name": { "rich_text": {} },
           "Subject": { "rich_text": {} }
         }
       }'
-
-echo "Schema update completed."
