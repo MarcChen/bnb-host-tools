@@ -2,6 +2,8 @@ from services.gmail_services.gmail_services import GmailService
 from mail_processing.parser import Parser
 import pandas as pd
 import os
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn
 
 class MailProcessorService:
     def __init__(self, debug: bool = False) -> None:
@@ -22,7 +24,7 @@ class MailProcessorService:
         
         for email in reserved_emails:
             parser = Parser(email)
-            parsed_data = parser.parse_data(print_data=True)
+            parsed_data = parser.parse_data()
             parsed_results.append(parsed_data)
             
             if self.debug:
@@ -42,26 +44,40 @@ class MailProcessorService:
 
     def run_workflow(self) -> None:
         """Execute the complete workflow"""
-        print("Starting mail processing workflow...")
-        
-        # Step 1: Process and tag all unread emails
-        # self.process_all_unread_mails()
-        
-        # Step 2: Parse reserved emails
-        parsed_reservations = self.parse_reserved_mails()
-        
+        console = Console()
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True
+        ) as progress:
+            step1 = progress.add_task(description="Processing unread mails...", total=None)
+            self.process_all_unread_mails()
+            progress.update(step1, completed=True)
 
-        # Step 3: Save data to CSV
-        print("\nStep 3: Saving reservations to CSV...")
-        if parsed_reservations:
-            
-            df = pd.DataFrame(parsed_reservations)
-            output_path = 'reservations.csv'
-            df.to_csv(output_path, index=False)
-            print(f"Data saved to {os.path.abspath(output_path)}")
-        else:
-            print("No reservations to save")
-        # Summary
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True
+        ) as progress:
+            step2 = progress.add_task(description="Parsing reserved mails...", total=None)
+            parsed_reservations = self.parse_reserved_mails()
+            progress.update(step2, completed=True)
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True
+        ) as progress:
+            step3 = progress.add_task(description="Saving reservations to CSV...", total=None)
+            print("\nStep 3: Saving reservations to CSV...")
+            if parsed_reservations:
+                df = pd.DataFrame(parsed_reservations)
+                output_path = 'reservations.csv'
+                df.to_csv(output_path, index=False)
+                print(f"Data saved to {os.path.abspath(output_path)}")
+            else:
+                print("No reservations to save")
+            progress.update(step3, completed=True)
         print(f"\nWorkflow completed. Processed {len(parsed_reservations)} reservations.")
 
 if __name__ == "__main__":
