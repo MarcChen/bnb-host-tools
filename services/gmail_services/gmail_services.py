@@ -148,27 +148,6 @@ class GmailService:
             print(f"An error occurred while reading mail content: {error}")
             return {}
 
-    def fetch_data_from_mail_header(self, specific_data: Dict[str, Optional[str]], message_details: Dict[str, str]) -> Dict[str, Optional[str]]:
-        """
-        Enhances extracted reservation data with email header details.
-
-        Args:
-            specific_data (Dict[str, Optional[str]]): Extracted reservation data.
-            message_details (Dict[str, str]): Email header details.
-
-        Returns:
-            Dict[str, Optional[str]]: Updated data with additional header info.
-        """
-        subject: str = message_details.get('Subject', '')
-        name_match = (re.search(r"Réservation confirmée\s*:\s*(.*?)\s*arrive", subject) or 
-                      re.search(r"Reservation confirmed\s*:\s*(.*?)\s*arrives", subject))
-        specific_data['Full_Name'] = name_match.group(1).strip() if name_match else 'Not Found'
-        specific_data.update({
-            'Subject': subject,
-            'Date': message_details.get('Date', '')
-        })
-        return specific_data
-
     def parse_reservation_header(self, content: Dict[str, str]) -> Dict[str, Optional[str]]:
         """
         Parses the email content to check if it is a reservation and extracts the full name.
@@ -180,8 +159,8 @@ class GmailService:
             Dict[str, Optional[str]]: {'is_reservation': bool, 'full_name': Optional[str]}
         """
         subject = content.get("Subject", "")
-        pattern_en = r"Reservation confirmed\s*[-:]\s*(?P<name>.*?)\s+arrives"
-        pattern_fr = r"Réservation confirmée\s*[:\-]\s*(?P<name>.*?)\s+arrive"
+        pattern_en = r"Reservation confirmed(?:\s*[:\-]\s*|\s+for\s+)(?P<name>.*?)(?:\s+arrives\b.*)?$"
+        pattern_fr = r"Réservation confirmée(?:\s*[:\-]\s*|\s+pour\s+)(?P<name>.*?)(?:\s+arrive\b.*)?$"
         match_en = re.search(pattern_en, subject, re.IGNORECASE)
         match_fr = re.search(pattern_fr, subject, re.IGNORECASE)
         if match_en:
@@ -190,22 +169,60 @@ class GmailService:
             return {"is_reservation": True, "full_name": match_fr.group("name").strip()}
         return {"is_reservation": False, "full_name": None}
 
+    def process_unread_emails(self) -> None:
+        """
+        Processes unread mails:
+        - Tags mails as 'reserved' if reservation confirmed,
+        - Otherwise tags as 'poubelle' and marks as read.
+        """
+        try:
+            unread_ids = self.list_unread_mails()
+            for msg_id in unread_ids:
+                content = self.get_mail_content(msg_id)
+                reservation_info = self.parse_reservation_header(content)
+                if reservation_info["is_reservation"]:
+                    self.tag_email(msg_id, self.reservation_label_name)
+                    print(f"Tagged email {msg_id} as reserved for {reservation_info.get('full_name').split(' ')[0]}.")
+                else:
+                    self.tag_email(msg_id, self.trash_label_name)
+                    self.mark_as_read(msg_id)
+                    print(f"Tagged email {msg_id} as poubelle and marked as read.")
+        except Exception as error:
+            print(f"An error occurred while processing unread emails: {error}")
+
+    def get_reserved_unread_emails_content(self) -> List[Dict[str, str]]:
+        """
+        Retrieves the content of all unread emails tagged as 'reserved'.
+
+        Returns:
+            List[Dict[str, str]]: A list of dictionaries containing email details.
+        """
+        try:
+            reserved_label_id = self.get_label_id(self.reservation_label_name)
+            if not reserved_label_id:
+                print(f"[yellow]Reserved label '{self.reservation_label_name}' not found.[/yellow]")
+                return []
+            response = self.gmail.users().messages().list(
+                userId=self.user_id, 
+                labelIds=[reserved_label_id, 'UNREAD']
+            ).execute()
+            messages = response.get("messages", [])
+            contents: List[Dict[str, str]] = []
+            for msg in messages:
+                contents.append(self.get_mail_content(msg["id"]))
+            return contents
+        except Exception as error:
+            print(f"An error occurred while retrieving reserved emails content: {error}")
+            return []
 
 if __name__ == "__main__":
     assert os.getenv("TOKEN_PATH"), "TOKEN_PATH environment variable not set."
     service = GmailService()
-    unread_ids = service.list_unread_mails()
-    print("Unread mail IDs:", unread_ids)
-    # Loop through all unread mails and process them with regex filtering
-    for msg_id in unread_ids:
-        content = service.get_mail_content(msg_id)
-        reservation_info = service.parse_reservation_header(content)
-        if reservation_info["is_reservation"]:
-            # Tag reserved mails but leave unread
-            service.tag_email(msg_id, service.reservation_label_name)
-            print(f"Tagged email {msg_id} as reserved for {reservation_info['full_name']}.")
-        else:
-            # Tag non-reserved mails and mark as read
-            service.tag_email(msg_id, service.trash_label_name)
-            service.mark_as_read(msg_id)
-            print(f"Tagged email {msg_id} as poubelle and marked as read.")
+    # ...existing test code or commented examples...
+    
+    # Test process_unread_emails: Tags unread emails accordingly.
+    # service.process_unread_emails()
+    
+    # Test get_reserved_unread_emails_content: Retrieve and print content of unread reserved emails.
+    # reserved_emails = service.get_reserved_unread_emails_content()
+    # print("Reserved unread emails content:", reserved_emails)
