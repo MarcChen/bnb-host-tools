@@ -1,5 +1,5 @@
 import pytest
-from services.parser.parser import Parser
+from services.mail_processing.parser import Parser
 import os
 import csv
 
