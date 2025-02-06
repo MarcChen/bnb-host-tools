@@ -1,27 +1,57 @@
 from services.gmail_services.gmail_services import GmailService
-from services.parser.parser import fetch_specific_data_from_content
+from mail_processing.parser import Parser
 
 class MailProcessorService:
-    def __init__(self) -> None:
+    def __init__(self, debug: bool = False) -> None:
         self.gmail_service = GmailService()
+        self.debug = debug
 
-    def upload_booking_data_to_db(self, data: dict) -> None:
-        # Stub: Implement the actual database upload logic here.
-        print("Uploading to database:", data)
+    def process_all_unread_mails(self) -> None:
+        """First step: Process and tag all unread emails"""
+        print("Step 1: Processing and tagging unread emails...")
+        self.gmail_service.process_unread_emails()
 
-    def process_unread_mails(self) -> None:
-        unread_mail_ids = self.gmail_service.list_unread_mails()
-        for msg_id in unread_mail_ids:
-            message_details = self.gmail_service.get_mail_content(msg_id, print_message=True)
-            specific_data = fetch_specific_data_from_content(message_details.get('Message_body', ''), print_data=True)
-            if specific_data:
-                specific_data = self.gmail_service.fetch_data_from_mail_header(specific_data, message_details)
-                print("Extracted Data:", specific_data)
-                self.upload_booking_data_to_db(specific_data)
-                self.gmail_service.mark_as_read(msg_id)
-            else:
-                print(f"No specific data extracted for message ID {msg_id}.")
+    def parse_reserved_mails(self) -> list:
+        """Second step: Get reserved emails and parse them"""
+        print("\nStep 2: Retrieving and parsing reserved emails...")
+        reserved_emails = self.gmail_service.get_reserved_unread_emails_content()
+        print(f"Mail content : {reserved_emails}")
+        parsed_results = []
+        
+        for email in reserved_emails:
+            parser = Parser(email)
+            parsed_data = parser.parse_data(print_data=True)
+            parsed_results.append(parsed_data)
+            
+            if self.debug:
+                # print("\nParsed Reservation Data:")
+                # print("-" * 30)
+                # for key, value in parsed_data.items():
+                #     if value != "N/A":
+                #         print(f"{key}: {value}")
+                #     else: 
+                #         print(f"\033[91m{key}: No data found.\033[0m")
+                # print("-" * 30)
+                print(parsed_data.get("Person Name", "No name found."))
+                for key, value in parsed_data.items():
+                    if value == "N/A" and key != "City": # Some users doesn't have city in their Airbnb profile
+                        print(f"\033[91m{key}: No data found.\033[0m")                
+        return parsed_results
+
+    def run_workflow(self) -> None:
+        """Execute the complete workflow"""
+        print("Starting mail processing workflow...")
+        
+        # Step 1: Process and tag all unread emails
+        # self.process_all_unread_mails()
+        
+        # Step 2: Parse reserved emails
+        parsed_reservations = self.parse_reserved_mails()
+        
+        # Summary
+        print(f"\nWorkflow completed. Processed {len(parsed_reservations)} reservations.")
 
 if __name__ == "__main__":
-    processor = MailProcessorService()
-    processor.process_unread_mails()
+    # Set debug to True for verbose output
+    processor = MailProcessorService(debug=True)
+    processor.run_workflow()
