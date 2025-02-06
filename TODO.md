@@ -1,19 +1,14 @@
 # TODO List
 
 ## Development
-- [ ] Validate PR workflow with Black, isort, and Flake8
-- [ ] Add some rich in the running workflows
-- [ ] Make the parser works over all the already existing mails
-- [ ] Factoriser le code parser !!! 
-        - Faire une fonction Prendre en input les regexps, et ensuite fait tout le reste pour alimenter directement data + ADD cleaning_fee_regex = re.compile(
-    r"(?<=Cleaning\sfee\r\n\r\n)€\s([\d\,\.]+)", 
-    re.IGNORECASE
-        - Faire des regexp communs reutilistable typiquement ([\d\,\.]+)
-        - Nommer les groupes catché
-)
-- [ ] Mark as read after processed mails
-- [ ] Add a method to check wether a row already exist in notion DB, otherwise append to it 
-- [ ] Create the django Webserver to display the feature (based on Notion DB)
+- [ ] Validate PR workflow with Black, isort, and Flake8 
+- [ ] Add a step for calendar
+    - Check if row already exist in calendar 
+    - If not add an event ! 
+- [ ] Add a step to push to Notion DB (Replace actual step 4 and delete `utilis.py`)
+    - Check if does already exists or not 
+- [ ] Create the django Webserver to display the feature 
+    - Pull Data from Notion
 - [ ] Add more detailed workflows chart
 
 ## Additional Tasks

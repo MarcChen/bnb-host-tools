@@ -30,8 +30,8 @@ class GmailService:
         self.user_id = 'me'
         self.label_id_one = 'INBOX'
         self.label_id_two = 'UNREAD'
-        self.reservation_label_name = 'reserved'
-        self.trash_label_name = 'poubelle'
+        self.reservation_label_id = self.get_label_id("reserved")
+        self.trash_label_id = self.get_label_id("poubelle")
 
     def tag_email(self, msg_id: str, label_name: str) -> None:
         """
@@ -182,10 +182,16 @@ class GmailService:
                 content = self.get_mail_content(msg_id)
                 reservation_info = self.parse_reservation_header(content)
                 if reservation_info["is_reservation"]:
-                    self.tag_email(msg_id, self.reservation_label_name)
-                    print(f"Tagged email {msg_id} as reserved for {reservation_info.get('full_name').split(' ')[0]}.")
+                    if self.reservation_label_id:
+                        self.gmail.users().messages().modify(
+                            userId=self.user_id, id=msg_id, body={"addLabelIds": [self.reservation_label_id]}
+                        ).execute()
+                        print(f"Tagged email {msg_id} as reserved for {reservation_info.get('full_name').split(' ')[0]}.")
                 else:
-                    self.tag_email(msg_id, self.trash_label_name)
+                    if self.trash_label_id:
+                        self.gmail.users().messages().modify(
+                            userId=self.user_id, id=msg_id, body={"addLabelIds": [self.trash_label_id]}
+                        ).execute()
                     self.mark_as_read(msg_id)
                     print(f"Tagged email {msg_id} as poubelle and marked as read.")
         except Exception as error:
@@ -199,13 +205,9 @@ class GmailService:
             List[Dict[str, str]]: A list of dictionaries containing email details.
         """
         try:
-            reserved_label_id = self.get_label_id(self.reservation_label_name)
-            if not reserved_label_id:
-                print(f"[yellow]Reserved label '{self.reservation_label_name}' not found.[/yellow]")
-                return []
             response = self.gmail.users().messages().list(
                 userId=self.user_id, 
-                labelIds=[reserved_label_id, 'UNREAD']
+                labelIds=[self.reservation_label_id, 'UNREAD']
             ).execute()
             messages = response.get("messages", [])
             contents: List[Dict[str, str]] = []
@@ -215,6 +217,19 @@ class GmailService:
         except Exception as error:
             print(f"An error occurred while retrieving reserved emails content: {error}")
             return []
+
+    def mark_reserved_mails_as_read(self) -> None:
+        try:
+            response = self.gmail.users().messages().list(
+                userId=self.user_id,
+                labelIds=[self.reservation_label_id, 'UNREAD']
+            ).execute()
+            messages = response.get("messages", [])
+            for msg in messages:
+                self.mark_as_read(msg["id"])
+            print(f"Marked {len(messages)} reserved mails as read.")
+        except Exception as error:
+            print(f"An error occurred while marking reserved mails as read: {error}")
 
 if __name__ == "__main__":
     assert os.getenv("TOKEN_PATH"), "TOKEN_PATH environment variable not set."
