@@ -21,6 +21,7 @@ class GmailService:
         """
         Initializes credentials, builds the Gmail API client, and sets default parameters.
         """
+        assert os.getenv("TOKEN_PATH"), "TOKEN_PATH environment variable not set."
         token_path = os.getenv("TOKEN_PATH")
         self.creds = load_credentials(token_path)
         self.creds = refresh_access_token(self.creds, token_path)

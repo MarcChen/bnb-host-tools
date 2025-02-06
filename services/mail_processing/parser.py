@@ -55,32 +55,39 @@ class Parser:
         data: Dict[str, Any] = {}
 
         # Regular expressions for shared and language-specific data
-        guest_location_regex = re.compile(r"bec06f\.jpg\]\s*(?:(?P<city>[A-Za-zÀ-ÖØ-öø-ÿ\s]+),\s*)?(?P<country>[A-Za-zÀ-ÖØ-öø-ÿ]+)(?=\r\n)")
+        # guest_location_regex = re.compile(
+        #     r"[0-9a-zA-Z-]+bec06f\.jpg\]\s*(?:(?P<city>[A-Za-zÀ-ÖØ-öø-ÿ\s]+),\s*)?(?P<country>[A-Za-zÀ-ÖØ-öø-ÿ]+)(?=\r\n\r\n\w)"
+        # )
+        guest_location_regex = re.compile(
+            r"[0-9a-zA-Z-]+bec06f\.jpg\]\s*(?:(?P<city>[A-Za-zÀ-ÖØ-öø-ÿ\s]+),\s*)?(?P<country>[A-Za-zÀ-ÖØ-öø-ÿ\s]{1,20})(?=\r\n\r\n\S)"
+        )
 
         if self.language == 'fr':
             arrival_date_regex = re.compile(r"(?:Arrivée\r\n\r\n)(\w{3})\.\s(\d{1,2})\s(janv|févr|mars|avr|mai|juin|juil|août|sept|oct|nov|déc)(?:\.\s(\d{4}))?")
             departure_date_regex = re.compile(r"(?:Départ\r\n\r\n)(\w{3})\.\s(\d{1,2})\s(janv|févr|mars|avr|mai|juin|juil|août|sept|oct|nov|déc)(?:\.\s(\d{4}))?")
             number_of_guests = re.compile(r"(?:Voyageurs)\r\n\r\n(\d{1,2})\s(?:adultes|adulte)(?:\,\s(\d{1,2}))?")
             confirmation_code_regex = re.compile(r"(?<=Code\sde\sconfirmation\r\n\r\n)(\w{10})")
-            price_by_night_guest_regex = re.compile(r"(?<=Le\svoyageur\sa\spayé\r\n\r\n)([\d\,\.]+)\s€\sx\s(\d{1,2})\snuits\r\n\r\n([\d\,\.\u202f]+)\s€")
+            price_by_night_guest_regex = re.compile(r"(?<=Le\svoyageur\sa\spayé\r\n\r\n)([\d\,\.]+)\s€\sx\s(\d{1,2})\snuits?\r\n\r\n([\d\,\.\u202f]+)\s€")
             cleaning_fee_regex = re.compile(r"Frais de ménage\s*(?:pour les séjours courte durée\s*)?\r?\n\s*([\d\,\.]+) €")
             guest_service_fee_regex = re.compile(r"(?<=Frais\sde\sservice\svoyageur\r\n\r\n)([\d\,\.]+)\s€")
-            host_service_fee_regex = re.compile(r"(?<=hôte\s\((\d.\d\s\%)\s\+\sTVA\)\r\n\r\n)(-\d{1,5},\d{2})\s€")
+            host_service_fee_regex = re.compile(r"service(?:\shôte\s\((?P<tax>\d.\d\s\%)\s\+\sTVA\))?\r\n\r\n(?P<host_service_fee>-[\d\,\.]+)\s€")
+            # host_service_fee_regex = re.compile(r"(?<=hôte\s\((\d.\d\s\%)\s\+\sTVA\)\r\n\r\n)(-\d{1,5},\d{2})\s€")
             tourist_tax_regex = re.compile(r"Taxes de séjour\s*\r?\n\s*([\d\,\.]+) €")
-            host_payout_regex = re.compile(r"(?<=gagnez\r\n)([\d\.,\u202f]+)\s€")
-            guest_payout_regex = re.compile(r"(?<=Total\s\(EUR\)\r\n)(\d{1,2})?(?:\u202f)?(\d{3,5},\d{2})(?=\s?\€\r\nVersement)")
+            host_payout_regex = re.compile(r"(?:gagnez)?\r\n([\d\.,\u202f]+)\s€(?:\r\n\r\n)(?:L\'argent)?")
+            guest_payout_regex = re.compile(r"(?<=Total\s\(EUR\)\r\n)([\d\.,\u202f]+)(?=\s?\€\r\nVersement)")
         elif self.language == 'en':
             arrival_date_regex = re.compile(r"(?:Check-in\r\n\r\n)(\w{3}),\s(\d{1,2})\s(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?:\.\s(\d{4}))?")
             departure_date_regex = re.compile(r"(?:Checkout\r\n\r\n)(\w{3}),\s(\d{1,2})\s(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?:\.\s(\d{4}))?")
             number_of_guests = re.compile(r"(?:Guests)\r\n\r\n(\d{1,2})\s(?:adults|adult)(?:\,\s(\d{1,2}))?")
             confirmation_code_regex = re.compile(r"(?<=Confirmation\scode\r\n\r\n)(\w{10})")
-            price_by_night_guest_regex = re.compile(r"(?<=Guest\spaid\r\n\r\n)€\s([\d\,\.]+)\sx\s(\d{1,2})\snights\r\n\r\n€\s([\d\,\.]+)")
-            cleaning_fee_regex = re.compile(r"(?<=Cleaning\sfee\r\n\r\n)€\s([\d\,\.]+)")
+            price_by_night_guest_regex = re.compile(r"(?<=Guest\spaid\r\n\r\n)€\s([\d\,\.]+)\sx\s(\d{1,2})\snights?\r\n\r\n€\s([\d\,\.]+)")
+            cleaning_fee_regex = re.compile(r"(?<=Cleaning\sfee\r\n\r\n)€\s([\d\,\.]+)", re.IGNORECASE)
             guest_service_fee_regex = re.compile(r"(?<=Guest\sservice\sfee\r\n\r\n)€\s([\d\,\.]+)")
-            host_service_fee_regex = re.compile(r"(?<=Host\sservice\sfee\s\((\d.\d\%)\s\+\sVAT\)\r\n\r\n)(-(?:€)\s\d{1,5}\.\d{2})")
+            host_service_fee_regex = re.compile(r"fee(?:\s\((?P<tax>\d.\d\%)\s\+\sVAT\))?\r\n\r\n(?P<host_service_fee>-€\s[\d\,\.]+)")
+            # host_service_fee_regex = re.compile(r"(?<=Host\sservice\sfee\s\((\d.\d\%)\s\+\sVAT\)\r\n\r\n)(-(?:€)\s\d{1,5}\.\d{2})")
             tourist_tax_regex = re.compile(r"(?<=\s€\s)([\d\,\.]+)*\sin\sOccupancy\sTaxes\.")
-            host_payout_regex = re.compile(r"(?<=You\searn\r\n)€\s([\d\,\.]+)")
-            guest_payout_regex = re.compile(r"(?<=Total\s\(EUR\)\r\n)€\s(\d{1,2})?(?:\u202f)?(\d{3,5}\.\d{2})(?=\r\nHost\spayout)")
+            host_payout_regex = re.compile(r"(?:You\searn)?\r\n€\s([\d\,\.]+)(?:\r\n\r\n)(?:The\smoney)?")
+            guest_payout_regex = re.compile(r"(?<=Total\s\(EUR\)\r\n)€\s?([\d\.,\u202f]+)(?=\r\nHost\spayout)")
         else:
             print("Language not detected or unsupported.")
             return data
@@ -116,7 +123,7 @@ class Parser:
             }
             for field, match in not_found_fields.items():
                 if not match:
-                    print(f"{field} not found")
+                    print(f"\033[93m{field} not found\033[0m")
 
         # Processing regex matches and grouping data
         if arrival_date_match and len(arrival_date_match.groups()) == 4:
@@ -154,24 +161,34 @@ class Parser:
         else:
             data['Confirmation Code'] = 'N/A'
 
-        if cleaning_fee_match:
-            if len(cleaning_fee_match.groups()) == 2 and cleaning_fee_match.group(1) != cleaning_fee_match.group(2):
-                data['Cleaning Fee'] = "ERROR : 2 different cleaning fees !"
-            else:
-                data['Cleaning Fee'] = cleaning_fee_match.group(1).replace(",", ".").strip()
-        else:
-            data['Cleaning Fee'] = 'N/A'
+        # if cleaning_fee_match:
+        #     if len(cleaning_fee_match.groups()) == 2 and cleaning_fee_match.group(1) != cleaning_fee_match.group(2):
+        #         data['Cleaning Fee'] = "ERROR : 2 different cleaning fees !"
+        #     else:
+        #         data['Cleaning Fee'] = cleaning_fee_match.group(1).replace(",", ".").strip()
+        # else:
+        #     data['Cleaning Fee'] = 'N/A'
+
+        #### HEREEEE FACTO LIKET THIS
+        data['Cleaning Fee'] = cleaning_fee_match.group(1).replace(",", ".").strip() if cleaning_fee_match else 'N/A'
 
         if guest_service_fee_match:
             data['Guest Service Fee'] = guest_service_fee_match.group(1).replace(",", ".").strip()
         else:
             data['Guest Service Fee'] = 'N/A'
 
+        # if host_service_fee_match:
+        #     data['Host Service Fee Percentage'] = host_service_fee_match.group(1)
+        #     data['Host Service Fee'] = host_service_fee_match.group(2).replace(",", ".").strip()
+        # else:
+        #     data.update({'Host Service Fee': 'N/A', 'Host Service Fee Percentage': 'N/A'})
         if host_service_fee_match:
-            data['Host Service Fee Percentage'] = host_service_fee_match.group(1)
-            data['Host Service Fee'] = host_service_fee_match.group(2).replace(",", ".").strip()
+            data['Host Service Fee'] = host_service_fee_match.group("host_service_fee").replace(",", ".").strip()
+            data['Host Service Tax'] = host_service_fee_match.group("tax").strip() if host_service_fee_match.group("tax") else 'N/A'
         else:
-            data.update({'Host Service Fee': 'N/A', 'Host Service Fee Percentage': 'N/A'})
+            data['Host Service Fee'] = 'N/A'
+            data['Host Service Tax'] = 'N/A'
+        # print(f"Host Service Fee: {data['Host Service Fee']}")
 
         if tourist_tax_match:
             data['Tourist Tax'] = tourist_tax_match.group(1).replace(",", ".").strip()
@@ -185,29 +202,39 @@ class Parser:
         else:
             data.update({'Price by night': 'N/A', 'Number of nights': 'N/A', 'Total Paid by Guest': 'N/A'})
 
-        if host_payout_match:
-            data['Host Payout'] = host_payout_match.group(1).replace(",", ".").strip()
-        else:
-            data['Host Payout'] = 'N/A'
+        # if guest_payout_match:
+        #     if guest_payout_match.group(1) is not None:
+        #         data['Guest Payout'] = guest_payout_match.group(1) + guest_payout_match.group(2).replace(",", ".")
+        #     else:
+        #         data['Guest Payout'] = guest_payout_match.group(2).replace(",", ".")
+        # else:
+        #     data['Guest Payout'] = 'N/A'
 
         if guest_payout_match:
-            if guest_payout_match.group(1) is not None:
-                data['Guest Payout'] = guest_payout_match.group(1) + guest_payout_match.group(2).replace(",", ".")
-            else:
-                data['Guest Payout'] = guest_payout_match.group(2).replace(",", ".")
+            data['Guest Payout'] = guest_payout_match.group(1).replace(",", ".").strip() if guest_payout_match.group(1) else 'N/A'
         else:
             data['Guest Payout'] = 'N/A'
+
+        if host_payout_match:
+            data['Host Payout'] = host_payout_match.group(1).replace(",", ".").strip() if host_payout_match.group(1) else 'N/A'
+        else:
+            data['Host Payout'] = 'N/A'
+        # print(f"Host Payout: {data['Host Payout']}")
+
+        # print(f"Host Payout: {data['Host Payout']}")
+        # print(f"Guest Payout: {data['Guest Payout']}")
 
         # Process Guest_Location instead of Country Code
         if guest_location_match:
             data['Country'] = guest_location_match.group("country").strip() if guest_location_match.group("country") else 'N/A'
             data['City'] = guest_location_match.group("city").strip() if guest_location_match.group("city") else 'N/A'
+        else :
+            data['Country'] = 'N/A'
+            data['City'] = 'N/A'
 
-        print(f"Country : {data.get('Country')} and City : {data.get('City')}") 
         # Append extra fields from the sample
         data["Mail Date"] = self.mail_date
         data["Person Name"] = self.person_name
-
         return data
 
 def append_booking_data_to_csv(filename: str, data: Dict[str, Any]) -> None:
