@@ -8,14 +8,27 @@ class Parser:
     A parser for extracting booking details from an email message.
     """
 
-    def __init__(self, message_body: str) -> None:
+    def __init__(self, mail: str) -> None:
         """
-        Initializes the Parser with the provided message body.
+        Initializes the Parser with the provided mail.
         
         Args:
-            message_body (str): The email body to parse.
+            mail (str): The email content to parse.
         """
-        self.message_body: str = message_body
+        # If a dict is provided, extract extra fields and update mail accordingly.
+        if isinstance(mail, dict):
+            self.mail_date = mail.get("Date", "N/A")
+            subject = mail.get("Subject", "")
+            # Remove any prefix like "TR :" and attempt to extract the person name.
+            subject_clean = subject.replace("TR :", "").strip()
+            print(f"Subject: {subject_clean}")
+            match = re.search(r"(Réservation confirmée|Reservation confirmed)\s*[:\-\u2013\u2014\u00A0]+\s*(.*?)\s+(?:arrive|arrives)", subject_clean, re.IGNORECASE)
+            self.person_name = match.group(2).strip() if match else "N/A"
+            self.message_body = mail.get("Message_body", "")
+        else:
+            self.message_body: str = mail
+            self.mail_date = "N/A"
+            self.person_name = "N/A"
         self.language: str = self.detect_language()
 
     def detect_language(self) -> str:
@@ -55,7 +68,7 @@ class Parser:
             guest_service_fee_regex = re.compile(r"(?<=Frais\sde\sservice\svoyageur\r\n\r\n)([\d\,\.]+)\s€")
             host_service_fee_regex = re.compile(r"(?<=hôte\s\((\d.\d\s\%)\s\+\sTVA\)\r\n\r\n)(-\d{1,5},\d{2})\s€")
             tourist_tax_regex = re.compile(r"Taxes de séjour\s*\r?\n\s*([\d\,\.]+) €")
-            host_payout_regex = re.compile(r"(?<=gagnez\r\n)([\d\,\.]+)\s€")
+            host_payout_regex = re.compile(r"(?<=gagnez\r\n)([\d\.,\u202f]+)\s€")
             guest_payout_regex = re.compile(r"(?<=Total\s\(EUR\)\r\n)(\d{1,2})?(?:\u202f)?(\d{3,5},\d{2})(?=\s?\€\r\nVersement)")
         elif self.language == 'en':
             arrival_date_regex = re.compile(r"(?:Check-in\r\n\r\n)(\w{3}),\s(\d{1,2})\s(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?:\.\s(\d{4}))?")
@@ -111,9 +124,10 @@ class Parser:
             data['Arrival_DayOfWeek'] = arrival_date_match.group(1).strip()
             data['Arrival_Day'] = arrival_date_match.group(2).strip()
             data['Arrival_Month'] = arrival_date_match.group(3).strip()
-            data['Arrival_Year'] = (arrival_date_match.group(4).strip()
-                                    if arrival_date_match.group(4) is not None
-                                    else "No year specified")
+            default_year = self.mail_date[:4] if self.mail_date != "N/A" else "N/A"
+            data['Arrival_Year'] = (arrival_date_match.group(4).strip() 
+                                    if arrival_date_match.group(4) is not None 
+                                    else default_year)
         else:
             data.update({'Arrival_DayOfWeek': 'N/A', 'Arrival_Day': 'N/A', 'Arrival_Month': 'N/A', 'Arrival_Year': 'N/A'})
 
@@ -121,9 +135,10 @@ class Parser:
             data['Departure_DayOfWeek'] = departure_date_match.group(1).strip()
             data['Departure_Day'] = departure_date_match.group(2).strip()
             data['Departure_Month'] = departure_date_match.group(3).strip()
-            data['Departure_Year'] = (departure_date_match.group(4).strip()
-                                      if departure_date_match.group(4) is not None
-                                      else "No year specified")
+            default_year = self.mail_date[:4] if self.mail_date != "N/A" else "N/A"
+            data['Departure_Year'] = (departure_date_match.group(4).strip() 
+                                      if departure_date_match.group(4) is not None 
+                                      else default_year)
         else:
             data.update({'Departure_DayOfWeek': 'N/A', 'Departure_Day': 'N/A', 'Departure_Month': 'N/A', 'Departure_Year': 'N/A'})
 
@@ -193,6 +208,11 @@ class Parser:
                 data['Guest Payout'] = guest_payout_match.group(2).replace(",", ".")
         else:
             data['Guest Payout'] = 'N/A'
+
+        # Append extra fields from the sample
+        data["Mail Date"] = self.mail_date
+        data["Person Name"] = self.person_name
+
         return data
 
 def append_booking_data_to_csv(filename: str, data: Dict[str, Any]) -> None:
@@ -260,20 +280,22 @@ def confirmation_code_exists_in_csv(filename: str, confirmation_code: str) -> bo
 
 if __name__ == "__main__":
     # Sample message body for testing (French sample)
-    sample_message = (
-        "Arrivée\r\n\r\nMon. 21 jun\r\n"
-        "Départ\r\n\r\nTue. 22 jun\r\n"
-        "Code de confirmation\r\n\r\nABCDEFGHIJ\r\n"
-        "Frais de ménage\r\n\r\n120,50 €\r\n"
-        "Frais de service voyageur\r\n\r\n15,00 €\r\n"
-        "hôte (10,0 % + TVA)\r\n\r\n-20,00 €\r\n"
-        "Taxes de séjour\r\n\r\n5,00 €\r\n"
-        "Le voyageur a payé\r\n\r\n100,00 € x 2 nuits\r\n\r\n200,00 €\r\n"
-        "gagnez\r\n\r\n180,00 €\r\n"
-        "bec06f.jpg]FR\r\n"
-    )
-    parser = Parser(sample_message)
-    parsed_data = parser.parse_data(print_data=True)
-    print("Parsed Data:")
-    for key, value in parsed_data.items():
-        print(f"{key}: {value}")
+    samples = [{'Sender': 'Davy Chen <Davy03cosh@hotmail.fr>', 'Subject': 'TR : Réservation confirmée\xa0: Kurt Pihl arrive le 4 mai', 'Date': '2025-02-02', 'Snippet': 'De : Airbnb &lt;automated@airbnb.com&gt; Envoyé : dimanche 2 février 2025 11:37:12 (UTC+01:00) Brussels, Copenhagen, Madrid, Paris À : davy03cosh@hotmail.fr &lt;davy03cosh@hotmail.fr&gt; Sujet :', 'Message_body': '________________________________\r\nDe : Airbnb \r\nEnvoyé : dimanche 2 février 2025 11:37:12 (UTC+01:00) Brussels, Copenhagen, Madrid, Paris\r\nÀ : davy03cosh@hotmail.fr \r\nSujet : Réservation confirmée : Kurt Pihl arrive le 4 mai\r\n\r\n\r\n[Airbnb]\r\nNouvelle réservation confirmée ! Kurt arrive le 4 mai\r\n\r\nEnvoyez un message pour confirmer les détails de l\'entrée dans les lieux ou pour souhaiter la bienvenue à Kurt.\r\n\r\n[https://a0.muscache.com/im/Portrait/Avatars/messaging/b3e03835-ade9-4eb7-a0bb-2466ab9a534d.jpg?im_t=K&im_w=240&im_f=airbnb-cereal-medium.ttf&im_c=ffffff]\n\r\n\r\nKurt\r\n\r\n[https://a0.muscache.com/im/pictures/0d520e2d-fe10-4292-a6b5-3616cbae5d94.jpg]Identité vérifiée\r\n\r\n[https://a0.muscache.com/im/pictures/d109f44f-35a7-4336-9420-750576bec06f.jpg]DK\r\n\r\nBonjour Davy < br/> Nous sommes un couple plus âgé avec une fille adulte qui verra Paris pour fø ; la dernière fois. < br/> Nous nous attendons à une arrivée à 15 h et à un départ à 11 h/> < br/> Cordialement, < br/> Kurt Pihl < br/> Copenhague < br/> Danemark < br/> Danemark < br/> Danemark < br/> Danemark < br/> Danemark\r\n\r\n[https://a0.muscache.com/im/pictures/5c6aa18e-5d55-4997-850f-ab93c6d4b2ca.jpg]Traduit automatiquement. Le message original est le suivant :\r\n\r\nHej Davy\r\nVi er et ældre par med en voksen datter som vil se Paris for første gang.\r\nVi forventer ankomst kl 15 og afrejse kl 11\r\n\r\nMed Venlig hilsen\r\nKurt Pihl\r\nCopenhagen\r\nDenmark\r\n\r\nLes messages des voyageurs et des hôtes ont été traduits automatiquement dans la langue utilisée pour votre compte. Vous pouvez modifier cette fonctionnalité dans vos paramètres.\r\n\r\nEnvoyez à Kurt un message\n\r\n[Appartement 90m² rénové avec balcon - Paris]\r\n\r\nAppartement 90m² rénové avec balcon - Paris\r\n\r\nChambre\r\n\r\nArrivée\r\n\r\ndim. 4 mai\r\n\r\n15:00\r\n\r\nDépart\r\n\r\nsam. 10 mai\r\n\r\n11:00\r\n\r\nVoyageurs\r\n\r\n3 adultes\r\n\r\nPlus d\'informations concernant les voyageurs\r\n\r\nLes voyageurs vous préciseront désormais s\'ils seront accompagnés d\'enfants ou de bébés. Indiquez-leur si votre logement est adapté aux enfants en mettant à jour votre règlement intérieur.\r\n\r\nCode de confirmation\r\n\r\nHMFANA2QCA\r\n\r\nVoir le récapitulatif\r\nLe voyageur a payé\r\n\r\n163,33 € x 6 nuits\r\n\r\n980,00 €\r\n\r\nFrais de ménage\r\n\r\n65,00 €\r\n\r\nFrais de service voyageur\r\n\r\n184,41 €\r\n\r\nTaxes de séjour\r\n\r\n159,25 €\r\n\r\nTotal (EUR)\r\n1\u202f388,66 €\r\nVersement de l\'hôte\r\n\r\nFrais de chambre pour 6 nuits\r\n\r\n980,00 €\r\n\r\nFrais de ménage\r\n\r\n65,00 €\r\n\r\nFrais de service hôte (3.0 % + TVA)\r\n\r\n-37,62 €\r\n\r\nVous gagnez\r\n1\u202f007,38 €\r\n\r\nVotre voyageur a payé 159,25 € en taxes de séjour. Airbnb se charge de reverser ces taxes en votre nom.\r\n\r\nPour en savoir plus sur vos obligations sociales et fiscales, rendez vous sur nos pages "Hôtes responsables".\r\n\r\nConditions d\'annulation\r\n\r\nVos conditions d\'annulation pour les voyageurs sont Strictes.\r\n\r\nLes pénalités d\'annulation de cette réservation incluent l\'obtention d\'un commentaire public indiquant que vous avez annulé, le paiement des frais d\'annulation ainsi que le blocage des nuits annulées sur votre calendrier.\r\n\r\nVoir les pénalités d\'annulation\r\nPréparez-vous pour l\'arrivée de Kurt\r\nConsulter les pratiques de sécurité liées au Covid-19\r\n\r\nNous avons créé un ensemble de pratiques de sécurité obligatoires liées au Covid-19 pour les hôtes Airbnb et les voyageurs. Ces pratiques incluent notamment la distanciation physique et le port d\'un masque.\r\n\r\nConsulter les pratiques\r\nAdoptez le processus de nettoyage renforcé en 5 étapes\r\n\r\nTous les hôtes doivent suivre le processus de nettoyage renforcé entre chaque séjour. Ce processus a été développé en partenariat avec des experts et vise à prévenir la propagation du Covid-19.\r\n\r\nConsulter le processus\r\nFournissez un plan d\'accès\r\n\r\nVérifiez que votre voyageur sait comment se rendre sur place.\r\n\r\nEnvoyer le message\r\n[AirCover pour les hôtes]\r\n\r\nUne protection complète, à chaque fois que vous accueillez des voyageurs.\r\n\r\nEn savoir plus\r\nAssistance utilisateurs\r\n\r\nContactez notre équipe d\'assistance 24h/24, 7j/7 partout dans le monde.\r\n\r\nVisiter le Centre d\'aideContacter Airbnb\r\n[Airbnb]\r\n\r\nAirbnb Ireland UC\r\n\r\n8 Hanover Quay\r\n\r\nDublin 2, Ireland\r\n\r\nConditions de paiement entre vous et :\r\n\r\nAirbnb Payments Luxembourg S.A.\r\n\r\n4 Rue Henri M. Schnadt\r\n\r\n2530 Luxembourg\r\n\r\nObtenir l\'application Airbnb\r\n\r\n[App Store]       [Google Play] \n'}, {'Sender': 'Davy Chen <Davy03cosh@hotmail.fr>', 'Subject': 'TR : Reservation confirmed - Orwis Huang arrives 2 Oct', 'Date': '2024-09-12', 'Snippet': 'De : Airbnb &lt;automated@airbnb.com&gt; Envoyé : jeudi 12 septembre 2024 14:39:47 (UTC+01:00) Brussels, Copenhagen, Madrid, Paris À : davy03cosh@hotmail.fr &lt;davy03cosh@hotmail.fr&gt; Sujet :', 'Message_body': '________________________________\r\nDe : Airbnb \r\nEnvoyé : jeudi 12 septembre 2024 14:39:47 (UTC+01:00) Brussels, Copenhagen, Madrid, Paris\r\nÀ : davy03cosh@hotmail.fr \r\nSujet : Reservation confirmed - Orwis Huang arrives 2 Oct\r\n\r\n\r\n[Airbnb]\r\nNew booking confirmed! Orwis arrives 2 Oct.\r\n\r\nSend a message to confirm check-in details or welcome Orwis.\r\n\r\n[https://a0.muscache.com/im/pictures/user/User/original/de9a9896-f5ba-4d83-af5f-0f54f21eb833.jpeg?aki_policy=profile_x_medium]\n\r\n\r\nOrwis\r\n\r\n[https://a0.muscache.com/im/pictures/0d520e2d-fe10-4292-a6b5-3616cbae5d94.jpg]Identity verified\r\n\r\n[https://a0.muscache.com/im/pictures/d109f44f-35a7-4336-9420-750576bec06f.jpg]Shanghai, China\r\n\r\nSend Orwis a Message\n\r\n[Appartement 90m² rénové avec balcon - Paris]\r\n\r\nAppartement 90m² rénové avec balcon - Paris\r\n\r\nRoom\r\n\r\nCheck-in\r\n\r\nWed, 2 Oct\r\n\r\n15:00\r\n\r\nCheckout\r\n\r\nSat, 5 Oct\r\n\r\n12:00\r\n\r\nGuests\r\n\r\n2 adults\r\n\r\nMore details about who’s coming\r\n\r\nGuests will now let you know if they’re bringing children and infants. Let them know upfront if your listing is suitable for children by updating your House Rules.\r\n\r\nConfirmation code\r\n\r\nHM5A8PDQY9\r\n\r\nView itinerary\r\nGuest paid\r\n\r\n€ 133.33 x 3 nights\r\n\r\n€ 400.00\r\n\r\nCleaning fee\r\n\r\n€ 65.00\r\n\r\nGuest service fee\r\n\r\n€ 70.96\r\n\r\nOccupancy taxes\r\n\r\n€ 65.00\r\n\r\nTotal (EUR)\r\n€ 600.96\r\nHost payout\r\n\r\n3-night room fee\r\n\r\n€ 400.00\r\n\r\nCleaning fee\r\n\r\n€ 65.00\r\n\r\nHost service fee (3.0% + VAT)\r\n\r\n-€ 16.74\r\n\r\nYou earn\r\n€ 448.26\r\n\r\nYour guest paid € 65.00 in Occupancy Taxes. Airbnb remits these taxes on your behalf.\r\n\r\nTo learn more about your fiscal and social obligations, please visit our Responsible Hosting pages.\r\n\r\nCancellations\r\n\r\nYour cancellation policy for guests is Strict.\r\n\r\nThe penalties for cancelling this reservation include getting a public review that shows you cancelled, paying a cancellation fee and having the cancelled nights blocked on your calendar.\r\n\r\nRead cancellation penalties\r\nGet ready for Orwis’s arrival\r\nReview the COVID-19 safety practices\r\n\r\nWe’ve created a set of mandatory COVID-19 safety practices for both Airbnb hosts and guests. These include practising social distancing and wearing a mask.\r\n\r\nReview practices\r\nFollow the 5-step enhanced cleaning process\r\n\r\nAll hosts are required to follow the enhanced cleaning process between guest stays. They were developed in partnership with experts in an effort to curb the spread of COVID-19.\r\n\r\nReview process\r\nProvide directions\r\n\r\nCheck that your guest knows how to get to your place.\r\n\r\nSend message\r\n[AirCover for Hosts]\r\n\r\nTop-to-bottom protection, included every time you host.\r\n\r\nLearn more\r\nCustomer support\r\n\r\nContact our support team 24/7 from anywhere in the world.\r\n\r\nVisit help centreContact Airbnb\r\n[Airbnb]\r\n\r\nAirbnb Ireland UC\r\n\r\n8 Hanover Quay\r\n\r\nDublin 2, Ireland\r\n\r\nPayment Terms between you and:\r\n\r\nAirbnb Payments UK Ltd.\r\n\r\nSuite 1, 3rd Floor\r\n\r\n11-12 St. James’s Square\r\n\r\nLondon, SW1Y 4LB\r\n\r\nUnited Kingdom\r\n\r\nGet the Airbnb app\r\n\r\n[App Store]    [Google Play] \n'}]
+    results = []
+    for sample in samples:
+        parser = Parser(sample)
+        parsed_data = parser.parse_data(print_data=True)
+        results.append(parsed_data)
+        for key, value in parsed_data.items():
+            # if value == "N/A":
+            #     print(f"{key} not found")
+            print(f"{key}: {value}")
+        print("-----")
+    # # Assertions to ensure extra data was extracted correctly.
+    # assert results[0].get("Mail Date") == "2025-02-02"
+    # assert results[0].get("Person Name") == "N/A"  # no person name from subject
+    # assert results[1].get("Mail Date") == "2025-02-02"
+    # assert results[1].get("Person Name") == "Kurt Pihl"
+    # assert results[2].get("Mail Date") == "2024-09-12"
+    # assert results[2].get("Person Name") == "Orwis Huang"
+    # print("All tests passed.")
