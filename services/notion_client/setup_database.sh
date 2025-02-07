@@ -14,19 +14,19 @@ curl -X PATCH "https://api.notion.com/v1/databases/${NOTION_DATABASE_ID}" \
   -H "Content-Type: application/json" \
   -d '{
         "title": [
-            {
-                "text": {
-                    "content": "Airbnb Bookings"
-                }
+          {
+            "text": {
+              "content": "Airbnb Bookings"
             }
+          }
         ],
         "description": [
-        {
+          {
             "text": {
-                "content": "Stores Airbnb booking information 🏠"
+              "content": "Stores Airbnb booking information 🏠"
             }
-        }
-    ],
+          }
+        ],
         "properties": {
           "Date": { "date": {} },
           "Arrival Date": { "date": {} },
@@ -45,7 +45,7 @@ curl -X PATCH "https://api.notion.com/v1/databases/${NOTION_DATABASE_ID}" \
           "Number of Children": { "number": {} },
           "Country": { "select": {} },
           "City": { "select": {} },
-          "Full_Name": { "rich_text": {} },
-          "Subject": { "rich_text": {} }
+          "Subject": { "rich_text": {} },
+          "Insert Date": { "rich_text": {} }
         }
       }'

@@ -28,52 +28,42 @@ class NotionClient:
         number_of_children: Optional[int] = None,
         country_code: Optional[str] = None,
         city: Optional[str] = None,
-        full_name: Optional[str] = None,
-        subject: Optional[str] = None
+        name: Optional[str] = None,
+        subject: Optional[str] = None,
+        insert_date: Optional[str] = None
     ) -> Any:
-        """Create a new page in the Notion database.
-        Fields with None values are omitted from the page properties.
-        """
+        property_mapping = {
+            "date": ("Date", lambda v: {"date": {"start": v}}),
+            "arrival_date": ("Arrival Date", lambda v: {"date": {"start": v}}),
+            "departure_date": ("Departure Date", lambda v: {"date": {"start": v}}),
+            "confirmation_code": ("Confirmation Code", lambda v: {"rich_text": [{"text": {"content": v}}]}),
+            "cost_per_night": ("Cost per Night", lambda v: {"number": v}),
+            "number_of_nights": ("Number of Nights", lambda v: {"number": v}),
+            "total_nights_cost": ("Total Nights Cost", lambda v: {"number": v}),
+            "cleaning_fee": ("Cleaning Fee", lambda v: {"number": v}),
+            "guest_service_fee": ("Guest Service Fee", lambda v: {"number": v}),
+            "host_service_fee": ("Host Service Fee", lambda v: {"number": v}),
+            "tourist_tax": ("Tourist Tax", lambda v: {"number": v}),
+            "total_paid_by_guest": ("Total Paid by Guest", lambda v: {"number": v}),
+            "host_payout": ("Host Payout", lambda v: {"number": v}),
+            "number_of_adults": ("Number of Adults", lambda v: {"number": v}),
+            "number_of_children": ("Number of Children", lambda v: {"number": v}),
+            "country_code": ("Country", lambda v: {"select": {"name": v}}),
+            "city": ("City", lambda v: {"select": {"name": v}}),
+            "name": ("Name", lambda v: {"title": [{"text": {"content": v}}]}),
+            "subject": ("Subject", lambda v: {"rich_text": [{"text": {"content": v}}]}),
+            "insert_date": ("Insert Date", lambda v: {"rich_text": [{"text": {"content": v}}]})
+        }
         props = {}
-        if date:
-            props["Date"] = {"date": {"start": date}}
-        if arrival_date:
-            props["Arrival Date"] = {"date": {"start": arrival_date}}
-        if departure_date:
-            props["Departure Date"] = {"date": {"start": departure_date}}
-        if confirmation_code:
-            props["Confirmation Code"] = {"rich_text": [{"text": {"content": confirmation_code}}]}
-        if cost_per_night is not None:
-            props["Cost per Night"] = {"number": cost_per_night}
-        if number_of_nights is not None:
-            props["Number of Nights"] = {"number": number_of_nights}
-        if total_nights_cost is not None:
-            props["Total Nights Cost"] = {"number": total_nights_cost}
-        if cleaning_fee is not None:
-            props["Cleaning Fee"] = {"number": cleaning_fee}
-        if guest_service_fee is not None:
-            props["Guest Service Fee"] = {"number": guest_service_fee}
-        if host_service_fee is not None:
-            props["Host Service Fee"] = {"number": host_service_fee}
-        if tourist_tax is not None:
-            props["Tourist Tax"] = {"number": tourist_tax}
-        if total_paid_by_guest is not None:
-            props["Total Paid by Guest"] = {"number": total_paid_by_guest}
-        if host_payout is not None:
-            props["Host Payout"] = {"number": host_payout}
-        if number_of_adults is not None:
-            props["Number of Adults"] = {"number": number_of_adults}
-        if number_of_children is not None:
-            props["Number of Children"] = {"number": number_of_children}
-        if country_code:
-            props["Country"] = {"select": {"name": country_code}}
-        if city:
-            props["City"] = {"select": {"name": city}}
-        if full_name:
-            props["Name"] = {"title": [{"text": {"content": full_name}}]}
-        if subject:
-            props["Subject"] = {"rich_text": [{"text": {"content": subject}}]}
-        return self.client.pages.create(parent={"database_id": self.database_id}, properties=props)
+        for arg, (notion_key, builder) in property_mapping.items():
+            value = locals()[arg]
+            if value is not None:
+                props[notion_key] = builder(value)
+
+        return self.client.pages.create(
+            parent={"database_id": self.database_id},
+            properties=props
+        )
 
     def delete_page_by_reservation_code(self, reservation_code: str) -> int:
         """Archive pages matching the confirmation code and return the count."""
@@ -129,29 +119,55 @@ class NotionClient:
         query = self.client.databases.query(database_id=self.database_id)
         return query.get("results", [])
 
+    def row_exists_by_reservation_id(self, reservation_id: str) -> bool:
+        """Check if a row exists based on the reservation ID (Confirmation Code)."""
+        query = self.client.databases.query(
+            database_id=self.database_id,
+            filter={
+                "property": "Confirmation Code",
+                "rich_text": {
+                    "equals": reservation_id
+                }
+            }
+        )
+        results = query.get("results", [])
+        return len(results) > 0
+
 if __name__ == "__main__":
     import datetime
     client = NotionClient()
 
     # Test get_all_pages
-    try:
-        pages = client.get_all_pages()
-        print("All pages:", pages)
-    except Exception as e:
-        print("Error retrieving all pages:", e)
+    # try:
+    #     pages = client.get_all_pages()
+    #     print("All pages:", pages)
+    # except Exception as e:
+    #     print("Error retrieving all pages:", e)
 
     # Prepare sample test data
-    today = datetime.date.today().isoformat()
+    today = datetime.datetime.now().replace(microsecond=0).isoformat()
+    print(f"Today's timestamp: {today}")
     sample_data = {
-        "date": today,
-        "arrival_date": today,
-        "departure_date": today,
-        "confirmation_code": "TEST123",
-        "number_of_children": 1,
-        "country_code": "US",
-        "city": "Unknown",
-        "full_name": "John Doe",
-        "subject": "Reservation Test"
+        "arrival_date": "2025-05-04",
+        "departure_date": "2025-05-10",
+        "number_of_adults": 3,
+        "number_of_children": 0,
+        "confirmation_code": "HMFANA2QCA",
+        "cleaning_fee": 65.00,
+        "guest_service_fee": 184.41,
+        "host_service_fee": -37.62,
+        "tourist_tax": 159.25,
+        "cost_per_night": 163.33,
+        "number_of_nights": 6,
+        "total_nights_cost": 980.00,
+        "total_paid_by_guest": 980.00,
+        "host_payout": 1388.66,
+        "country_code": "DK",
+        "city": "N/A",
+        "date": "2025-02-02",
+        "name": "Kurt Pihl",
+        "subject": "Reservation Test",
+        "insert_date": today
     }
 
     # Test create_page
@@ -161,16 +177,23 @@ if __name__ == "__main__":
     except Exception as e:
         print("Error creating page:", e)
 
-    # Test get_pages_by_reservation_code
-    try:
-        pages_by_code = client.get_pages_by_reservation_code("TEST123")
-        print("Pages with reservation code 'TEST123':", pages_by_code)
-    except Exception as e:
-        print("Error retrieving pages by reservation code:", e)
+    # try:
+    #     reservation_code = "HMFANA2QCA"
+    #     exists = client.row_exists_by_reservation_id(reservation_code)
+    #     print(f"Row with reservation code '{reservation_code}' exists:", exists)
+    # except Exception as e:
+    #     print("Error checking row existence:", e)
 
-    # Test delete_page_by_reservation_code
-    try:
-        deleted_count = client.delete_page_by_reservation_code("TEST123")
-        print("Number of deleted pages for reservation 'TEST123':", deleted_count)
-    except Exception as e:
-        print("Error deleting pages by reservation code:", e)
+    # # Test get_pages_by_reservation_code
+    # try:
+    #     pages_by_code = client.get_pages_by_reservation_code("TEST123")
+    #     print("Pages with reservation code 'TEST123':", pages_by_code)
+    # except Exception as e:
+    #     print("Error retrieving pages by reservation code:", e)
+
+    # # Test delete_page_by_reservation_code
+    # try:
+    #     deleted_count = client.delete_page_by_reservation_code("TEST123")
+    #     print("Number of deleted pages for reservation 'TEST123':", deleted_count)
+    # except Exception as e:
+    #     print("Error deleting pages by reservation code:", e)
