@@ -1,0 +1,113 @@
+name: Run Workflow
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 */2 * *'
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  run-worfklow:
+    name: Run Worfklow
+    runs-on: ubuntu-latest
+
+    if: github.ref == 'refs/heads/main'  # Only execute on the main branch
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Ensure Python 3.10 in PATH (install if missing)
+        shell: bash
+        run: |
+          if command -v python3.10 &>/dev/null; then
+            echo "Python 3.10 is already installed at $(command -v python3.10)."
+          else
+            echo "Python 3.10 not found. Installing..."
+            sudo apt-get update
+            sudo apt-get install -y software-properties-common
+            sudo add-apt-repository -y ppa:deadsnakes/ppa
+            sudo apt-get update
+            sudo apt-get install -y python3.10
+          fi
+
+          # Ensure Python 3.10 is available in PATH
+          if command -v python3.10 &>/dev/null; then
+            echo "$(dirname "$(command -v python3.10)")" >> $GITHUB_PATH
+          else
+            echo "ERROR: Python 3.10 installation failed."
+            exit 1
+          fi
+
+      - name: Ensure Poetry in PATH (install if missing)
+        shell: bash
+        run: |
+          if command -v poetry &>/dev/null; then
+            echo "Poetry is already installed at $(command -v poetry)."
+          else
+            echo "Poetry not found. Installing..."
+            curl -sSL https://install.python-poetry.org | python3.10 -
+
+            # Add Poetry's bin directory to PATH for the current session
+            export PATH="$HOME/.local/bin:$PATH"
+          fi
+
+          # Ensure Poetry is available in PATH
+          if command -v poetry &>/dev/null; then
+            echo "$(dirname "$(command -v poetry)")" >> $GITHUB_PATH
+          else
+            echo "ERROR: Poetry not found after installation."
+            exit 1
+          fi
+
+      - name: Validate Dependencies
+        shell: bash
+        run: |
+          echo "=== Checking Python 3.10 ==="
+          command -v python3.10 || { echo "Python 3.10 not found"; exit 1; }
+          python3.10 --version
+
+          echo "=== Checking Poetry ==="
+          command -v poetry || { echo "Poetry not found"; exit 1; }
+          poetry --version
+
+          echo "=== Running poetry check ==="
+          poetry check
+        working-directory: ${{ github.workspace }}
+
+      - name: Set Poetry Env to Python 3.10
+        shell: bash
+        run: |
+          poetry env use python3.10
+        working-directory: ${{ github.workspace }}
+
+      - name: Install Dependencies
+        shell: bash
+        run: |
+          poetry install
+        working-directory: ${{ github.workspace }}
+
+      - name: Generate Google API Token
+        shell: bash
+        run: |
+          poetry run python services/oauth_credentials/config_creds.py --save_dir .
+        working-directory: ${{ github.workspace }}
+        env:
+          GOOGLE_ACCESS_TOKEN: ${{ secrets.GOOGLE_ACCESS_TOKEN }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+
+      - name: Sync Notion to Google Tasks
+        shell: bash
+        run: |
+          export TOKEN_PATH="${{ github.workspace }}/token.json"
+          poetry run python main.py
+        working-directory: ${{ github.workspace }}
+        env:
+          NOTION_API: ${{ secrets.NOTION_API }}
+          DATABASE_ID: ${{ secrets.DATABASE_ID }}
+          PROJECT_ROOT: ${{ github.workspace }}
