@@ -6,7 +6,9 @@ from services.notion_client.notion_api_client import NotionClient
 
 
 @pytest.fixture
-def mock_client():
+def mock_client(monkeypatch):  # added monkeypatch parameter
+    monkeypatch.setenv("NOTION_API", "dummy")
+    monkeypatch.setenv("DATABASE_ID", "dummy")
     with patch("services.notion_client.notion_api_client.Client") as mock_cls:
         yield mock_cls
 
