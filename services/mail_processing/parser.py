@@ -114,11 +114,10 @@ class Parser:
             "host_payout"
         ]
         for field in numeric_fields:
-            if data[field] != "N/A":
-                try:
-                    data[field] = float(data[field].replace("\u202f", ""))
-                except ValueError:
-                    data[field] = 0.0
+            try:
+                data[field] = float(data[field].replace("\u202f", ""))
+            except ValueError:
+                data[field] = 0.0
 
         return data
 
@@ -312,10 +311,10 @@ class Parser:
         elif language == "en":
             return {
                 "arrival_date": re.compile(
-                    r"(?:Check-in\r\n\r\n)(\w{3}),\s(\d{1,2})\s(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?:\.\s(\d{4}))?"
+                    r"(?:Check-in\r\n\r\n)(\w{3}),\s(\d{1,2})\s(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?:\s(\d{4}))?"
                 ),
                 "departure_date": re.compile(
-                    r"(?:Checkout\r\n\r\n)(\w{3}),\s(\d{1,2})\s(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?:\.\s(\d{4}))?"
+                    r"(?:Checkout\r\n\r\n)(\w{3}),\s(\d{1,2})\s(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?:\s(\d{4}))?"
                 ),
                 "number_of_guests": re.compile(r"(?:Guests)\r\n\r\n(\d{1,2})\s(?:adults|adult)(?:,\s(\d{1,2}))?"),
                 "confirmation_code": re.compile(r"(?<=Confirmation\scode\r\n\r\n)(\w{10})"),
