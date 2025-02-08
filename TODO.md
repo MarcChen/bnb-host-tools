@@ -1,7 +1,8 @@
 # TODO List
 
 ## Development
-- [ ] Validate PR workflow with Black, isort, and Flake8 
+- [ ] Validate PR workflow with Black, isort, and Flake8
+- [ ] Déplacer Oauth Credentials directement dans Google Services et grouper claendar et Gmail 
 - [ ] Add a step for calendar
     - Check if row already exist in calendar 
     - If not add an event ! 

@@ -3,6 +3,7 @@ import datetime
 import os
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+import warnings
 
 # Import auth functions
 from oauth_credentials.authentification import (
@@ -29,8 +30,25 @@ class CalendarService:
                 break
         if not self.calendar_id:
             raise ValueError(f"Calendar '{calendar_summary}' not found.")
+        existing_events = self.service.events().list(
+            calendarId=self.calendar_id, singleEvents=True
+        ).execute().get("items", [])
+        self.existing_event_summaries = set(evt.get("summary", "") for evt in existing_events)
 
-    def create_event(self, start_time, end_time, person_name, reservation_code, location, adults, children=None, country="France", attendees=None):
+    def create_event(self, reservation, attendees=None):
+        start_time = reservation.get("start_time")
+        end_time = reservation.get("end_time")
+        person_name = reservation.get("Name", "Unknown")
+        reservation_code = reservation.get("Reservation Code", "")
+        location = reservation.get("City", "Unknown")
+        adults = reservation.get("Number of Adults", 1)
+        children = reservation.get("Number of child", 0)
+        country = reservation.get("Country", "France")
+        # Check cache of existing summaries instead of retrieving again
+        for summary in self.existing_event_summaries:
+            if reservation_code in summary:
+                warnings.warn(f"An event with reservation code '{reservation_code}' already exists.", UserWarning)
+                return None
         # Create event title and description based on reservation details.
         event_summary = f"{person_name} - {reservation_code}"
         description_en = f"Reservation by {person_name} from {country}. Adults: {adults}"
@@ -62,6 +80,7 @@ class CalendarService:
                 calendarId=self.calendar_id, body=event
             ).execute()
             print(f"Event created: {created_event.get('htmlLink')}")
+            self.existing_event_summaries.add(event_summary)
             return created_event
         except HttpError as error:
             print(f"An error occurred: {error}")
@@ -119,16 +138,17 @@ if __name__ == '__main__':
     end = start + datetime.timedelta(hours=2)
     # Test: Create an event with reservation details.
     print("Creating event...")
-    svc.create_event(
-        start_time=start,
-        end_time=end,
-        person_name="John Doe",
-        reservation_code="ABC123",
-        location="23 Villa Curial",
-        adults=2,
-        children=1,
-        # attendees=["chen987415@gmail.com"]
-    )
+    reservation = {
+        "start_time": start,
+        "end_time": end,
+        "Person Name": "John Doe",
+        "Reservation Code": "ABC123",
+        "City": "23 Villa Curial",
+        "Number of Adults": 2,
+        "Number of child": 1,
+        "Country": "France"
+    }
+    svc.create_event(reservation)
     # Test: Retrieve future events.
     print("Retrieving future events...")
     future_events = svc.retrieve_events(future=True)

@@ -1,43 +1,25 @@
 import os
 from typing import Any, Dict, List, Union, Optional  # Added Optional type
 from notion_client import Client
+import warnings
+import datetime
 
 class NotionClient:
     def __init__(self) -> None:
         """Initialize client with API key and database id from environment variables."""
-        self.token = os.environ.get("NOTION_API_KEY")
-        self.database_id = os.environ.get("NOTION_DATABASE_ID")
+        self.token = os.environ.get("NOTION_API")
+        self.database_id = os.environ.get("DATABASE_ID")
+        assert self.token, "Missing NOTION_API environment variable"
+        assert self.database_id, "Missing DATABASE_ID environment variable"
         self.client = Client(auth=self.token)
 
-    def create_page(
-        self,
-        date: Optional[str] = None,
-        arrival_date: Optional[str] = None,
-        departure_date: Optional[str] = None,
-        confirmation_code: Optional[str] = None,
-        cost_per_night: Optional[Union[int, float]] = None,
-        number_of_nights: Optional[Union[int, float]] = None,
-        total_nights_cost: Optional[Union[int, float]] = None,
-        cleaning_fee: Optional[Union[int, float]] = None,
-        guest_service_fee: Optional[Union[int, float]] = None,
-        host_service_fee: Optional[Union[int, float]] = None,
-        tourist_tax: Optional[Union[int, float]] = None,
-        total_paid_by_guest: Optional[Union[int, float]] = None,
-        host_payout: Optional[Union[int, float]] = None,
-        number_of_adults: Optional[int] = None,
-        number_of_children: Optional[int] = None,
-        country_code: Optional[str] = None,
-        city: Optional[str] = None,
-        name: Optional[str] = None,
-        subject: Optional[str] = None,
-        insert_date: Optional[str] = None
-    ) -> Any:
+    def create_page(self, **kwargs) -> Any:
         property_mapping = {
             "date": ("Date", lambda v: {"date": {"start": v}}),
             "arrival_date": ("Arrival Date", lambda v: {"date": {"start": v}}),
             "departure_date": ("Departure Date", lambda v: {"date": {"start": v}}),
             "confirmation_code": ("Confirmation Code", lambda v: {"rich_text": [{"text": {"content": v}}]}),
-            "cost_per_night": ("Cost per Night", lambda v: {"number": v}),
+            "price_by_night": ("Price by night", lambda v: {"number": v}),
             "number_of_nights": ("Number of Nights", lambda v: {"number": v}),
             "total_nights_cost": ("Total Nights Cost", lambda v: {"number": v}),
             "cleaning_fee": ("Cleaning Fee", lambda v: {"number": v}),
@@ -48,17 +30,26 @@ class NotionClient:
             "host_payout": ("Host Payout", lambda v: {"number": v}),
             "number_of_adults": ("Number of Adults", lambda v: {"number": v}),
             "number_of_children": ("Number of Children", lambda v: {"number": v}),
-            "country_code": ("Country", lambda v: {"select": {"name": v}}),
+            "country": ("Country", lambda v: {"select": {"name": v}}),
             "city": ("City", lambda v: {"select": {"name": v}}),
             "name": ("Name", lambda v: {"title": [{"text": {"content": v}}]}),
             "subject": ("Subject", lambda v: {"rich_text": [{"text": {"content": v}}]}),
-            "insert_date": ("Insert Date", lambda v: {"rich_text": [{"text": {"content": v}}]})
+            "insert_date": ("Insert Date", lambda v: {"rich_text": [{"text": {"content": v}}]}),
+            "arrival_day_of_week": ("Arrival DayOfWeek", lambda v: {"rich_text": [{"text": {"content": v}}]}),
+            "departure_day_of_week": ("Departure DayOfWeek", lambda v: {"rich_text": [{"text": {"content": v}}]}),
+            "host_service_tax": ("Host Service Tax", lambda v: {"number": v}),
+            "price_by_night": ("Price by night", lambda v: {"number": v}),
+            "guest_payout": ("Guest Payout", lambda v: {"number": v}),
+            "mail_date": ("Mail Date", lambda v: {"date": {"start": v}}),
+            "number_of_child": ("Number of child", lambda v: {"number": v}),
         }
         props = {}
-        for arg, (notion_key, builder) in property_mapping.items():
-            value = locals()[arg]
-            if value is not None:
+        for field, value in kwargs.items():
+            if field in property_mapping and value is not None:
+                notion_key, builder = property_mapping[field]
                 props[notion_key] = builder(value)
+
+        props["Insert Date"] = {"rich_text": [{"text": {"content": datetime.datetime.now().replace(microsecond=0).isoformat()}}]}
 
         return self.client.pages.create(
             parent={"database_id": self.database_id},
@@ -66,7 +57,8 @@ class NotionClient:
         )
 
     def delete_page_by_reservation_code(self, reservation_code: str) -> int:
-        """Archive pages matching the confirmation code and return the count."""
+        if not reservation_code or reservation_code == "N/A":
+            return 0
         query = self.client.databases.query(
             database_id=self.database_id,
             filter={
@@ -120,7 +112,10 @@ class NotionClient:
         return query.get("results", [])
 
     def row_exists_by_reservation_id(self, reservation_id: str) -> bool:
-        """Check if a row exists based on the reservation ID (Confirmation Code)."""
+        if not reservation_id or reservation_id == "N/A":
+            warnings.warn("Invalid reservation ID", UserWarning)
+            print(f"Invalid reservation ID: {reservation_id}")
+            return False
         query = self.client.databases.query(
             database_id=self.database_id,
             filter={
@@ -134,7 +129,6 @@ class NotionClient:
         return len(results) > 0
 
 if __name__ == "__main__":
-    import datetime
     client = NotionClient()
 
     # Test get_all_pages

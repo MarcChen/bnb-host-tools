@@ -70,7 +70,7 @@ def test_parse_data_french():
     # Check extra fields from __init__
     assert data.get("Mail Date") == "2025-02-02"
     # Person name should have been extracted from subject (e.g. "Kurt Pihl")
-    assert "Kurt Pihl" in data.get("Person Name", "")
+    assert "Kurt Pihl" in data.get("Name", "")
 
 
 def test_parse_data_english():
@@ -83,7 +83,7 @@ def test_parse_data_english():
     # Check extra fields from __init__
     assert data.get("Mail Date") == "2024-09-12"
     # Person name should be extracted from subject (e.g. "Orwis Huang")
-    assert "Orwis Huang" in data.get("Person Name", "")
+    assert "Orwis Huang" in data.get("Name", "")
 
 
 def test_raw_string_input_language_unknown():
