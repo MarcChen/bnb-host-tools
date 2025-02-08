@@ -1,7 +1,7 @@
-from services.gmail_services.gmail_services import GmailService
+from services.google_integration.gmail_services import GmailService
 from mail_processing.parser import Parser
 from services.notion_client.notion_api_client import NotionClient
-from services.google_calendar.calendar_services import CalendarService
+from services.google_integration.calendar_services import CalendarService
 
 import pandas as pd
 import warnings
@@ -17,13 +17,13 @@ class MailProcessorService:
     def parse_reserved_mails(self) -> list:
         """Second step: Get reserved emails and parse them"""
         reserved_emails = self.gmail_service.get_reserved_unread_emails_content()
-        # print(f"Mail content : {reserved_emails}")
+        print(f"Mail content : {reserved_emails}") if self.debug else None
         parsed_results = []
         
         month_mapping = {
             "jan": "01", "janv": "01",
             "fév": "02", "févr": "02", "feb": "02",
-            "mar": "03",
+            "mar": "03", "mars": "03",
             "avr": "04", "apr": "04",
             "mai": "05", "may": "05",
             "jun": "06", "juin": "06",
@@ -67,14 +67,14 @@ class MailProcessorService:
                 #     else: 
                 #         print(f"\033[91m{key}: No data found.\033[0m")
                 # print("-" * 30)
-                print(parsed_data.get("Name", "No name found."))
+                print(parsed_data.get("name", "No name found."))
                 for key, value in parsed_data.items():
-                    if value == "N/A" and key != "City" and key != "Host Service Tax": # Some users doesn't have city in their Airbnb profile
-                        print(f"\033[91m{key}: No data found.\033[0m")
+                    if value == "N/A" and key != "city" and key != "host_service_tax": # Some users doesn't have city in their Airbnb profile
+                        print(f"[bold red]{key}: No data found.[/bold red]")
 
             seen_codes = set()
             for reservation in parsed_results:
-                code = reservation.get("Confirmation Code")
+                code = reservation.get("confirmation_code")
                 if code in seen_codes:
                     raise ValueError(f"Duplicate reservation code found: {code}")
                 seen_codes.add(code)
@@ -82,6 +82,10 @@ class MailProcessorService:
 
     def run_workflow(self) -> None:
         """Execute the complete workflow"""
+
+        ### Try to factorize the code bellow
+
+
         console = Console()
         with Progress(
             SpinnerColumn(),
@@ -116,27 +120,35 @@ class MailProcessorService:
                 notion_client = NotionClient()
                 calendar_service = CalendarService()
                 for reservation in parsed_reservations:
-                    if not notion_client.row_exists_by_reservation_id(reservation.get("Confirmation Code")):
-                        print(f"Reservation is {reservation}")
+                    confirmation_code = reservation.get("confirmation_code")
+                    if not notion_client.row_exists_by_reservation_id(confirmation_code):
+                        # print(f"Reservation is {reservation}")
                         notion_client.create_page(**reservation)
-                        # calendar_service.create_event(**reservation)
-                print(f"[bold green]✓[/bold green] Data saved to Notion and events created \n")
+                        print(f"[bold green]✓[/bold green] [bold cyan]Reservation {confirmation_code} saved to Notion[/bold cyan]\n")
+                    else:
+                        console.print(f"[bold yellow]Warning:[/bold yellow] A reservation with confirmation code '{confirmation_code}' already exists.\n", style="yellow")
+
+                    if calendar_service.event_exists(confirmation_code):
+                        console.print(f"[bold yellow]Warning:[/bold yellow] An event with reservation code '{confirmation_code}' already exists.\n", style="yellow")
+                    else:
+                        calendar_service.create_event(**reservation)
+                        print(f"[bold green]✓[/bold green] [bold cyan]Event created for reservation {confirmation_code}[/bold cyan]\n")
             else:
                 print("[yellow]No reservations to save[/yellow]")
                 return
             progress.update(step3, completed=True)
-            print("[bold green]✓[/bold green] Step 3 completed: Data saved\n")
+            print("[bold green]✓[/bold green] Step 3 completed: Data saved to Notion and events are created\n")
 
-        # with Progress(
-        #     SpinnerColumn(),
-        #     TextColumn("[progress.description]{task.description}"),
-        #     transient=True
-        # ) as progress:
-        #     print("[bold blue]Step 4: Marking reserved mails as read...[/bold blue]")
-        #     step4 = progress.add_task(description="[bold magenta]Marking reserved mails as read...[/bold magenta]", total=None)
-        #     self.gmail_service.mark_reserved_mails_as_read()
-        #     progress.update(step4, completed=True)
-        #     print("[bold green]✓[/bold green] Step 4 completed: Reserved mails marked as read\n")
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True
+        ) as progress:
+            print("[bold blue]Step 4: Marking reserved mails as read...[/bold blue]")
+            step4 = progress.add_task(description="[bold magenta]Marking reserved mails as read...[/bold magenta]", total=None)
+            self.gmail_service.mark_reserved_mails_as_read()
+            progress.update(step4, completed=True)
+            print("[bold green]✓[/bold green] Step 4 completed: Reserved mails marked as read\n")
 
 
         # with Progress(
@@ -145,7 +157,7 @@ class MailProcessorService:
         #     transient=True
         # ) as progress:
         #     print("[bold blue]Step 4: Saving reservations to CSV...[/bold blue]")
-        #     step3 = progress.add_task(description="[bold magenta]Saving reservations to CSV...[/bold magenta]", total=None)
+        #     step4 = progress.add_task(description="[bold magenta]Saving reservations to CSV...[/bold magenta]", total=None)
         #     if parsed_reservations:
         #         import os 
         #         df = pd.DataFrame(parsed_reservations)
@@ -154,13 +166,9 @@ class MailProcessorService:
         #         print(f"[bold green]✓[/bold green] Data saved to {os.path.abspath(output_path)}")
         #     else:
         #         print("[yellow]No reservations to save[/yellow]")
-        #     progress.update(step3, completed=True)
+        #     progress.update(step4, completed=True)
         #     print("[bold green]✓[/bold green] Step 4 completed: Data saved\n")
 
         print(f"\n[bold green]Workflow completed successfully![/bold green]")
         print(f"[blue]Processed {len(parsed_reservations)} reservations.[/blue]")
 
-if __name__ == "__main__":
-    # Set debug to True for verbose output
-    processor = MailProcessorService(debug=True)
-    processor.run_workflow()

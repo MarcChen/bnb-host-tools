@@ -35,20 +35,23 @@ class CalendarService:
         ).execute().get("items", [])
         self.existing_event_summaries = set(evt.get("summary", "") for evt in existing_events)
 
-    def create_event(self, reservation, attendees=None):
-        start_time = reservation.get("start_time")
-        end_time = reservation.get("end_time")
-        person_name = reservation.get("Name", "Unknown")
-        reservation_code = reservation.get("Reservation Code", "")
-        location = reservation.get("City", "Unknown")
-        adults = reservation.get("Number of Adults", 1)
-        children = reservation.get("Number of child", 0)
-        country = reservation.get("Country", "France")
-        # Check cache of existing summaries instead of retrieving again
-        for summary in self.existing_event_summaries:
-            if reservation_code in summary:
-                warnings.warn(f"An event with reservation code '{reservation_code}' already exists.", UserWarning)
-                return None
+    def create_event(self, attendees=None, **reservation):
+        arrival_date_str = reservation.get("arrival_date")
+        departure_date_str = reservation.get("departure_date")
+        if not arrival_date_str or not departure_date_str:
+            raise ValueError("Missing arrival_date or departure_date in reservation.")
+
+        start_time = datetime.datetime.fromisoformat(arrival_date_str)
+        end_time = datetime.datetime.fromisoformat(departure_date_str)
+        person_name = reservation.get("name", "Unknown")
+        reservation_code = reservation.get("confirmation_code", "")
+        adults = reservation.get("number_of_adults", 1)
+        children = reservation.get("number_of_children", 0)
+        country = reservation.get("country", "France")
+        # Replace the existing check with a call to event_exists.
+        if self.event_exists(reservation_code):
+            warnings.warn(f"An event with reservation code '{reservation_code}' already exists.", UserWarning)
+            return None
         # Create event title and description based on reservation details.
         event_summary = f"{person_name} - {reservation_code}"
         description_en = f"Reservation by {person_name} from {country}. Adults: {adults}"
@@ -60,7 +63,7 @@ class CalendarService:
         description = description_en + "\n----\n" + description_cn
         event = {
             "summary": event_summary,
-            "location": location,
+            "location": "7 Rue Curial, 75019 Paris, France",
             "description": description,
             "start": {"dateTime": start_time.isoformat(), "timeZone": "UTC"},
             "end": {"dateTime": end_time.isoformat(), "timeZone": "UTC"},
@@ -130,30 +133,67 @@ class CalendarService:
         except HttpError as error:
             print(f"An error occurred: {error}")
 
+    def event_exists(self, reservation_code):
+        # Check if any existing event summary contains the reservation code.
+        for summary in self.existing_event_summaries:
+            if reservation_code in summary:
+                return True
+        return False
+
+    def delete_all_reservation_events(self):
+        # Delete all events with a reservation code (i.e., with " - " in the summary)
+        try:
+            events_result = self.service.events().list(
+                calendarId=self.calendar_id,
+                singleEvents=True
+            ).execute()
+            events = events_result.get("items", [])
+            deleted = False
+            for event in events:
+                summary = event.get("summary", "")
+                if " - " in summary:  # Reservation events follow the "{name} - {reservation_code}" pattern.
+                    self.service.events().delete(
+                        calendarId=self.calendar_id, eventId=event.get("id")
+                    ).execute()
+                    print(f"Deleted event: {summary}")
+                    deleted = True
+            if not deleted:
+                print("No reservation events found to delete.")
+        except HttpError as error:
+            print(f"An error occurred: {error}")
+
 if __name__ == '__main__':
-    # Test the CalendarService functionalities
-    svc = CalendarService()
+    # svc = CalendarService()
     # Set test start and end times.
-    start = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
-    end = start + datetime.timedelta(hours=2)
+    # start = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
+    # end = start + datetime.timedelta(hours=2)
     # Test: Create an event with reservation details.
-    print("Creating event...")
-    reservation = {
-        "start_time": start,
-        "end_time": end,
-        "Person Name": "John Doe",
-        "Reservation Code": "ABC123",
-        "City": "23 Villa Curial",
-        "Number of Adults": 2,
-        "Number of child": 1,
-        "Country": "France"
-    }
-    svc.create_event(reservation)
+    # print("Creating event...")
+    # reservation = {
+    #     "arrival_date": start.isoformat(),
+    #     "departure_date": end.isoformat(),
+    #     "name": "John Doe",
+    #     "confirmation_code": "ABC123",
+    #     "city": "23 Villa Curial",
+    #     "number_of_adults": 2,
+    #     "number_of_children": 1,
+    #     "country": "France"
+    # }
+    # svc.create_event(**reservation)
     # Test: Retrieve future events.
-    print("Retrieving future events...")
-    future_events = svc.retrieve_events(future=True)
-    for event in future_events:
-        print(event.get("summary"))
+    # print("Retrieving future events...")
+    # future_events = svc.retrieve_events(future=True)
+    # for event in future_events:
+    #     print(event.get("summary"))
     # Test: Delete event by reservation code.
-    print("Deleting event with reservation code 'ABC123'...")
+    # print("Deleting event with reservation code 'ABC123'...")
     # svc.delete_event("ABC123")
+    
+    # Test the new method with code "HM43WHMJXZ"
+    # svc = CalendarService()
+    # exists = svc.event_exists("HM43WHMJXZ")
+    # print(f"Event with reservation code 'HM43WHMJXZ' exists:", exists)
+
+    # Delete all events
+    svc = CalendarService()
+    svc.delete_all_reservation_events()
