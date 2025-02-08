@@ -21,8 +21,8 @@ FRENCH_SAMPLE = {
         "Arrivée\r\n\r\ndim. 4 mai\r\n\r\n15:00\r\n\r\nDépart\r\n\r\nsam. 10 mai\r\n\r\n11:00\r\n\r\nVoyageurs\r\n\r\n3 adultes\r\n\r\nPlus d'informations...\r\n\r\n"
         "Code de confirmation\r\n\r\nHMFANA2QCA\r\n\r\nVoir le récapitulatif\r\nLe voyageur a payé\r\n\r\n163,33 € x 6 nuits\r\n\r\n980,00 €\r\n\r\n"
         "Frais de ménage\r\n\r\n65,00 €\r\n\r\nFrais de service voyageur\r\n\r\n184,41 €\r\n\r\nTaxes de séjour\r\n\r\n159,25 €\r\n\r\n"
-        "Total (EUR)\r\n1\u202f388,66 €\r\nVersement de l'hôte\r\n\r\nFrais de chambre pour 6 nuits\r\n\r\n980,00 €\r\n\r\nFrais de ménage\r\n\r\n65,00 €\r\n\r\n"
-        "Frais de service hôte (3.0 % + TVA)\r\n\r\n-37,62 €\r\n\r\nVous gagnez\r\n1\u202f007,38 €\r\n"
+        "Total (EUR)\r\n1\u202f388,66 €\r\nVersement de l'hôte\r\n\r\nFrais de chambre pour 6 nuits\r\n\r\n980,00 €\r\n\r\n"
+        "Frais de ménage\r\n\r\n65,00 €\r\n\r\nFrais de service hôte (3.0 % + TVA)\r\n\r\n-37,62 €\r\n\r\nVous gagnez\r\n1\u202f007,38 €\r\n"
     )
 }
 
@@ -60,30 +60,37 @@ def test_detect_language_english():
 
 def test_parse_data_french():
     parser = Parser(FRENCH_SAMPLE)
-    data = parser.parse_data(print_data=False)
+    with pytest.warns(UserWarning) as record:
+        data = parser.parse_data()  # removed print_data argument
+    # Assert expected warning is raised about guest_location
+    assert any("guest_location not found" in str(w.message) for w in record)
     # Check that language-specific fields are parsed.
-    assert data.get("Confirmation Code") == "HMFANA2QCA"
+    assert data.get("confirmation_code") == "HMFANA2QCA"
     # Since the French sample does not include the full expected block for arrival/departure,
     # we check that the fields are present even if with default values.
-    for key in ["Arrival_DayOfWeek", "Arrival_Day", "Arrival_Month", "Arrival_Year"]:
+    for key in ["arrival_day_of_week", "arrival_day", "arrival_month", "arrival_year"]:
         assert key in data
     # Check extra fields from __init__
-    assert data.get("Mail Date") == "2025-02-02"
+    assert data.get("mail_date") == "2025-02-02"
     # Person name should have been extracted from subject (e.g. "Kurt Pihl")
-    assert "Kurt Pihl" in data.get("Name", "")
+    assert "Kurt Pihl" in data.get("name", "")
 
 
 def test_parse_data_english():
     parser = Parser(ENGLISH_SAMPLE)
-    data = parser.parse_data(print_data=False)
-    assert data.get("Confirmation Code") == "HM5A8PDQY9"
+    with pytest.warns(UserWarning) as record:
+        data = parser.parse_data()  # removed print_data argument
+    # Assert expected warnings are raised about tourist_tax and guest_payout
+    assert any("tourist_tax not found" in str(w.message) for w in record)
+    assert any("guest_payout not found" in str(w.message) for w in record)
+    assert data.get("confirmation_code") == "HM5A8PDQY9"
     # Check that English language was detected and some expected fields exist.
-    for key in ["Arrival_DayOfWeek", "Arrival_Day", "Arrival_Month", "Arrival_Year"]:
+    for key in ["arrival_day_of_week", "arrival_day", "arrival_month", "arrival_year"]:
         assert key in data
     # Check extra fields from __init__
-    assert data.get("Mail Date") == "2024-09-12"
+    assert data.get("mail_date") == "2024-09-12"
     # Person name should be extracted from subject (e.g. "Orwis Huang")
-    assert "Orwis Huang" in data.get("Name", "")
+    assert "Orwis Huang" in data.get("name", "")
 
 
 def test_raw_string_input_language_unknown():
@@ -92,8 +99,5 @@ def test_raw_string_input_language_unknown():
     parser = Parser(raw_mail)
     # As no keywords are found, language should be 'unknown'
     assert parser.detect_language() == 'unknown'
-    data = parser.parse_data(print_data=False)
-    # Most fields will be 'N/A'
-    for key in data:
-        # Just a check that the data dict has some expected keys
-        assert key is not None
+    with pytest.raises(ValueError, match="Language not detected or unsupported."):
+        parser.parse_data()
