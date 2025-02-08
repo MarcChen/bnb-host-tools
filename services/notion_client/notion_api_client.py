@@ -1,8 +1,10 @@
-import os
-from typing import Any, Dict, List, Union, Optional  # Added Optional type
-from notion_client import Client
-import warnings
 import datetime
+import os
+import warnings
+from typing import Any, Dict, List
+
+from notion_client import Client
+
 
 class NotionClient:
     def __init__(self) -> None:
@@ -18,7 +20,10 @@ class NotionClient:
             "date": ("Date", lambda v: {"date": {"start": v}}),
             "arrival_date": ("Arrival Date", lambda v: {"date": {"start": v}}),
             "departure_date": ("Departure Date", lambda v: {"date": {"start": v}}),
-            "confirmation_code": ("Confirmation Code", lambda v: {"rich_text": [{"text": {"content": v}}]}),
+            "confirmation_code": (
+                "Confirmation Code",
+                lambda v: {"rich_text": [{"text": {"content": v}}]},
+            ),
             "price_by_night": ("Price by night", lambda v: {"number": v}),
             "number_of_nights": ("Number of Nights", lambda v: {"number": v}),
             "total_nights_cost": ("Total Nights Cost", lambda v: {"number": v}),
@@ -34,11 +39,19 @@ class NotionClient:
             "city": ("City", lambda v: {"select": {"name": v}}),
             "name": ("Name", lambda v: {"title": [{"text": {"content": v}}]}),
             "subject": ("Subject", lambda v: {"rich_text": [{"text": {"content": v}}]}),
-            "insert_date": ("Insert Date", lambda v: {"rich_text": [{"text": {"content": v}}]}),
-            "arrival_day_of_week": ("Arrival DayOfWeek", lambda v: {"rich_text": [{"text": {"content": v}}]}),
-            "departure_day_of_week": ("Departure DayOfWeek", lambda v: {"rich_text": [{"text": {"content": v}}]}),
+            "insert_date": (
+                "Insert Date",
+                lambda v: {"rich_text": [{"text": {"content": v}}]},
+            ),
+            "arrival_day_of_week": (
+                "Arrival DayOfWeek",
+                lambda v: {"rich_text": [{"text": {"content": v}}]},
+            ),
+            "departure_day_of_week": (
+                "Departure DayOfWeek",
+                lambda v: {"rich_text": [{"text": {"content": v}}]},
+            ),
             "host_service_tax": ("Host Service Tax", lambda v: {"number": v}),
-            "price_by_night": ("Price by night", lambda v: {"number": v}),
             "guest_payout": ("Guest Payout", lambda v: {"number": v}),
             "mail_date": ("Mail Date", lambda v: {"date": {"start": v}}),
             "number_of_child": ("Number of child", lambda v: {"number": v}),
@@ -49,11 +62,20 @@ class NotionClient:
                 notion_key, builder = property_mapping[field]
                 props[notion_key] = builder(value)
 
-        props["Insert Date"] = {"rich_text": [{"text": {"content": datetime.datetime.now().replace(microsecond=0).isoformat()}}]}
+        props["Insert Date"] = {
+            "rich_text": [
+                {
+                    "text": {
+                        "content": datetime.datetime.now()
+                        .replace(microsecond=0)
+                        .isoformat()
+                    }
+                }
+            ]
+        }
 
         return self.client.pages.create(
-            parent={"database_id": self.database_id},
-            properties=props
+            parent={"database_id": self.database_id}, properties=props
         )
 
     def delete_page_by_reservation_code(self, reservation_code: str) -> int:
@@ -63,10 +85,8 @@ class NotionClient:
             database_id=self.database_id,
             filter={
                 "property": "Confirmation Code",
-                "rich_text": {  # Updated filter type
-                    "equals": reservation_code
-                }
-            }
+                "rich_text": {"equals": reservation_code},  # Updated filter type
+            },
         )
         for result in query.get("results", []):
             page_id = result["id"]
@@ -92,16 +112,16 @@ class NotionClient:
                 parsed[key] = value
         return parsed
 
-    def get_pages_by_reservation_code(self, reservation_code: str) -> List[Dict[str, Any]]:
+    def get_pages_by_reservation_code(
+        self, reservation_code: str
+    ) -> List[Dict[str, Any]]:
         """Retrieve and parse pages that match the provided confirmation code."""
         query = self.client.databases.query(
             database_id=self.database_id,
             filter={
                 "property": "Confirmation Code",
-                "rich_text": {
-                    "equals": reservation_code
-                }
-            }
+                "rich_text": {"equals": reservation_code},
+            },
         )
         pages = query.get("results", [])
         return [self.parse_page(page) for page in pages]
@@ -120,13 +140,12 @@ class NotionClient:
             database_id=self.database_id,
             filter={
                 "property": "Confirmation Code",
-                "rich_text": {
-                    "equals": reservation_id
-                }
-            }
+                "rich_text": {"equals": reservation_id},
+            },
         )
         results = query.get("results", [])
         return len(results) > 0
+
 
 if __name__ == "__main__":
     client = NotionClient()
@@ -161,7 +180,7 @@ if __name__ == "__main__":
         "date": "2025-02-02",
         "name": "Kurt Pihl",
         "subject": "Reservation Test",
-        "insert_date": today
+        "insert_date": today,
     }
 
     # Test create_page

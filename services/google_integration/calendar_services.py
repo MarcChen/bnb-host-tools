@@ -1,16 +1,18 @@
 # calendar-api-server/calendar_services.py
 import datetime
 import os
+import warnings
+
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-import warnings
 
 # Import auth functions
 from oauth_credentials.authentification import (
     load_credentials,
-    refresh_access_token,
     print_token_ttl,
+    refresh_access_token,
 )
+
 
 class CalendarService:
     def __init__(self, calendar_summary="Airbnb réservation | Airbnb 预订"):
@@ -30,10 +32,15 @@ class CalendarService:
                 break
         if not self.calendar_id:
             raise ValueError(f"Calendar '{calendar_summary}' not found.")
-        existing_events = self.service.events().list(
-            calendarId=self.calendar_id, singleEvents=True
-        ).execute().get("items", [])
-        self.existing_event_summaries = set(evt.get("summary", "") for evt in existing_events)
+        existing_events = (
+            self.service.events()
+            .list(calendarId=self.calendar_id, singleEvents=True)
+            .execute()
+            .get("items", [])
+        )
+        self.existing_event_summaries = set(
+            evt.get("summary", "") for evt in existing_events
+        )
 
     def create_event(self, attendees=None, **reservation):
         arrival_date_str = reservation.get("arrival_date")
@@ -50,11 +57,16 @@ class CalendarService:
         country = reservation.get("country", "France")
         # Replace the existing check with a call to event_exists.
         if self.event_exists(reservation_code):
-            warnings.warn(f"An event with reservation code '{reservation_code}' already exists.", UserWarning)
+            warnings.warn(
+                f"An event with reservation code '{reservation_code}' already exists.",
+                UserWarning,
+            )
             return None
         # Create event title and description based on reservation details.
         event_summary = f"{person_name} - {reservation_code}"
-        description_en = f"Reservation by {person_name} from {country}. Adults: {adults}"
+        description_en = (
+            f"Reservation by {person_name} from {country}. Adults: {adults}"
+        )
         if children is not None:
             description_en += f", Children: {children}"
         description_cn = f"{person_name} 的预订，来自 {country}。成人: {adults}"
@@ -68,20 +80,22 @@ class CalendarService:
             "start": {"dateTime": start_time.isoformat(), "timeZone": "UTC"},
             "end": {"dateTime": end_time.isoformat(), "timeZone": "UTC"},
             "reminders": {
-            "useDefault": False,
-            "overrides": [
-                {"method": "email", "minutes": 24 * 60},
-                {"method": "popup", "minutes": 10},
-            ],
+                "useDefault": False,
+                "overrides": [
+                    {"method": "email", "minutes": 24 * 60},
+                    {"method": "popup", "minutes": 10},
+                ],
             },
         }
         # Add attendees if provided.
         if attendees is not None:
             event["attendees"] = [{"email": email} for email in attendees]
         try:
-            created_event = self.service.events().insert(
-                calendarId=self.calendar_id, body=event
-            ).execute()
+            created_event = (
+                self.service.events()
+                .insert(calendarId=self.calendar_id, body=event)
+                .execute()
+            )
             print(f"Event created: {created_event.get('htmlLink')}")
             self.existing_event_summaries.add(event_summary)
             return created_event
@@ -93,19 +107,27 @@ class CalendarService:
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         try:
             if future:
-                events_result = self.service.events().list(
-                    calendarId=self.calendar_id,
-                    timeMin=now,
-                    singleEvents=True,
-                    orderBy="startTime"
-                ).execute()
+                events_result = (
+                    self.service.events()
+                    .list(
+                        calendarId=self.calendar_id,
+                        timeMin=now,
+                        singleEvents=True,
+                        orderBy="startTime",
+                    )
+                    .execute()
+                )
             else:
-                events_result = self.service.events().list(
-                    calendarId=self.calendar_id,
-                    timeMax=now,
-                    singleEvents=True,
-                    orderBy="startTime"
-                ).execute()
+                events_result = (
+                    self.service.events()
+                    .list(
+                        calendarId=self.calendar_id,
+                        timeMax=now,
+                        singleEvents=True,
+                        orderBy="startTime",
+                    )
+                    .execute()
+                )
             events = events_result.get("items", [])
             return events
         except HttpError as error:
@@ -115,10 +137,11 @@ class CalendarService:
     def delete_event(self, reservation_code):
         # Delete events by filtering events with the given reservation code in their summary.
         try:
-            events_result = self.service.events().list(
-                calendarId=self.calendar_id,
-                singleEvents=True
-            ).execute()
+            events_result = (
+                self.service.events()
+                .list(calendarId=self.calendar_id, singleEvents=True)
+                .execute()
+            )
             events = events_result.get("items", [])
             deleted = False
             for event in events:
@@ -143,15 +166,18 @@ class CalendarService:
     def delete_all_reservation_events(self):
         # Delete all events with a reservation code (i.e., with " - " in the summary)
         try:
-            events_result = self.service.events().list(
-                calendarId=self.calendar_id,
-                singleEvents=True
-            ).execute()
+            events_result = (
+                self.service.events()
+                .list(calendarId=self.calendar_id, singleEvents=True)
+                .execute()
+            )
             events = events_result.get("items", [])
             deleted = False
             for event in events:
                 summary = event.get("summary", "")
-                if " - " in summary:  # Reservation events follow the "{name} - {reservation_code}" pattern.
+                if (
+                    " - " in summary
+                ):  # Reservation events follow the "{name} - {reservation_code}" pattern.
                     self.service.events().delete(
                         calendarId=self.calendar_id, eventId=event.get("id")
                     ).execute()
@@ -162,7 +188,8 @@ class CalendarService:
         except HttpError as error:
             print(f"An error occurred: {error}")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # svc = CalendarService()
     # Set test start and end times.
     # start = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
@@ -188,7 +215,7 @@ if __name__ == '__main__':
     # Test: Delete event by reservation code.
     # print("Deleting event with reservation code 'ABC123'...")
     # svc.delete_event("ABC123")
-    
+
     # Test the new method with code "HM43WHMJXZ"
     # svc = CalendarService()
     # exists = svc.event_exists("HM43WHMJXZ")

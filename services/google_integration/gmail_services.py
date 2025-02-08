@@ -1,16 +1,18 @@
+import base64
 import os
-from typing import Optional, List, Dict
+import re
+from typing import Dict, List, Optional
+
+from bs4 import BeautifulSoup
+from dateutil import parser
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from dateutil import parser
-import base64
-from bs4 import BeautifulSoup
-import re
 from oauth_credentials.authentification import (
     load_credentials,
-    refresh_access_token,
     print_token_ttl,
+    refresh_access_token,
 )
+
 
 class GmailService:
     """
@@ -26,10 +28,10 @@ class GmailService:
         self.creds = load_credentials(token_path)
         self.creds = refresh_access_token(self.creds, token_path)
         print_token_ttl(self.creds)
-        self.gmail = build('gmail', 'v1', credentials=self.creds)
-        self.user_id = 'me'
-        self.label_id_one = 'INBOX'
-        self.label_id_two = 'UNREAD'
+        self.gmail = build("gmail", "v1", credentials=self.creds)
+        self.user_id = "me"
+        self.label_id_one = "INBOX"
+        self.label_id_two = "UNREAD"
         self.reservation_label_id = self.get_label_id("reserved")
         self.trash_label_id = self.get_label_id("poubelle")
 
@@ -82,7 +84,7 @@ class GmailService:
         """
         try:
             self.gmail.users().messages().modify(
-                userId=self.user_id, id=msg_id, body={'removeLabelIds': ['UNREAD']}
+                userId=self.user_id, id=msg_id, body={"removeLabelIds": ["UNREAD"]}
             ).execute()
         except HttpError as error:
             print(f"An error occurred while marking the email as read: {error}")
@@ -95,17 +97,51 @@ class GmailService:
             List[str]: List of unread email IDs.
         """
         try:
-            unread_msgs = self.gmail.users().messages().list(
-                userId=self.user_id, labelIds=[self.label_id_one, self.label_id_two]
-            ).execute()
-            mssg_list = unread_msgs.get('messages', [])
+            unread_msgs = (
+                self.gmail.users()
+                .messages()
+                .list(
+                    userId=self.user_id, labelIds=[self.label_id_one, self.label_id_two]
+                )
+                .execute()
+            )
+            mssg_list = unread_msgs.get("messages", [])
             print("Total unread messages in inbox: ", str(len(mssg_list)))
-            return [mssg['id'] for mssg in mssg_list]
+            return [mssg["id"] for mssg in mssg_list]
         except HttpError as error:
             print(f"An error occurred: {error}")
             return []
 
-    def get_mail_content(self, msg_id: str, print_message: bool = False) -> Dict[str, str]:
+    def _parse_headers(self, headers: List[Dict[str, str]]) -> Dict[str, str]:
+        temp_dict: Dict[str, str] = {}
+        for header in headers:
+            if header["name"] == "Subject":
+                temp_dict["Subject"] = header["value"]
+            elif header["name"] == "Date":
+                date_parse = parser.parse(header["value"])
+                temp_dict["Date"] = str(date_parse.date())
+            elif header["name"] == "From":
+                temp_dict["Sender"] = header["value"]
+        return temp_dict
+
+    def _parse_body(self, payload: dict) -> str:
+        message_body = ""
+        try:
+            if "parts" in payload:
+                for part in payload["parts"]:
+                    if part["mimeType"] == "text/plain":
+                        part_data = part["body"].get("data", "")
+                        clean_one = part_data.replace("-", "+").replace("_", "/")
+                        decoded = base64.b64decode(clean_one)
+                        message_body = BeautifulSoup(decoded, "lxml").body.text
+                        break
+        except Exception as e:
+            print("Error processing message body:", e)
+        return message_body
+
+    def get_mail_content(
+        self, msg_id: str, print_message: bool = False
+    ) -> Dict[str, str]:
         """
         Fetches and returns the content of an email by its ID.
 
@@ -117,31 +153,16 @@ class GmailService:
             Dict[str, str]: A dictionary containing email details.
         """
         try:
-            message = self.gmail.users().messages().get(userId=self.user_id, id=msg_id).execute()
-            payld = message['payload']
-            headr = payld['headers']
-            temp_dict: Dict[str, str] = {}
-            for header in headr:
-                if header['name'] == 'Subject':
-                    temp_dict['Subject'] = header['value']
-                elif header['name'] == 'Date':
-                    date_parse = parser.parse(header['value'])
-                    temp_dict['Date'] = str(date_parse.date())
-                elif header['name'] == 'From':
-                    temp_dict['Sender'] = header['value']
-            temp_dict['Snippet'] = message.get('snippet', '')
-            try:
-                if 'parts' in payld:
-                    for part in payld['parts']:
-                        if part['mimeType'] == 'text/plain':
-                            part_data = part['body'].get('data', '')
-                            clean_one = part_data.replace("-", "+").replace("_", "/")
-                            decoded = base64.b64decode(clean_one)
-                            temp_dict['Message_body'] = BeautifulSoup(decoded, "lxml").body.text
-                            break
-            except Exception as e:
-                print("Error processing message body:", e)
-                temp_dict['Message_body'] = ''
+            message = (
+                self.gmail.users()
+                .messages()
+                .get(userId=self.user_id, id=msg_id)
+                .execute()
+            )
+            payload = message["payload"]
+            temp_dict = self._parse_headers(payload["headers"])
+            temp_dict["Snippet"] = message.get("snippet", "")
+            temp_dict["Message_body"] = self._parse_body(payload)
             if print_message:
                 print("Message content :", temp_dict)
             return temp_dict
@@ -149,7 +170,9 @@ class GmailService:
             print(f"An error occurred while reading mail content: {error}")
             return {}
 
-    def parse_reservation_header(self, content: Dict[str, str]) -> Dict[str, Optional[str]]:
+    def parse_reservation_header(
+        self, content: Dict[str, str]
+    ) -> Dict[str, Optional[str]]:
         """
         Parses the email content to check if it is a reservation and extracts the full name.
 
@@ -184,13 +207,19 @@ class GmailService:
                 if reservation_info["is_reservation"]:
                     if self.reservation_label_id:
                         self.gmail.users().messages().modify(
-                            userId=self.user_id, id=msg_id, body={"addLabelIds": [self.reservation_label_id]}
+                            userId=self.user_id,
+                            id=msg_id,
+                            body={"addLabelIds": [self.reservation_label_id]},
                         ).execute()
-                        print(f"Tagged email {msg_id} as reserved for {reservation_info.get('full_name').split(' ')[0]}.")
+                        print(
+                            f"Tagged email {msg_id} as reserved for {reservation_info.get('full_name').split(' ')[0]}."
+                        )
                 else:
                     if self.trash_label_id:
                         self.gmail.users().messages().modify(
-                            userId=self.user_id, id=msg_id, body={"addLabelIds": [self.trash_label_id]}
+                            userId=self.user_id,
+                            id=msg_id,
+                            body={"addLabelIds": [self.trash_label_id]},
                         ).execute()
                     self.mark_as_read(msg_id)
                     print(f"Tagged email {msg_id} as poubelle and marked as read.")
@@ -205,25 +234,35 @@ class GmailService:
             List[Dict[str, str]]: A list of dictionaries containing email details.
         """
         try:
-            response = self.gmail.users().messages().list(
-                userId=self.user_id, 
-                labelIds=[self.reservation_label_id, 'UNREAD']
-            ).execute()
+            response = (
+                self.gmail.users()
+                .messages()
+                .list(
+                    userId=self.user_id, labelIds=[self.reservation_label_id, "UNREAD"]
+                )
+                .execute()
+            )
             messages = response.get("messages", [])
             contents: List[Dict[str, str]] = []
             for msg in messages:
                 contents.append(self.get_mail_content(msg["id"]))
             return contents
         except Exception as error:
-            print(f"An error occurred while retrieving reserved emails content: {error}")
+            print(
+                f"An error occurred while retrieving reserved emails content: {error}"
+            )
             return []
 
     def mark_reserved_mails_as_read(self) -> None:
         try:
-            response = self.gmail.users().messages().list(
-                userId=self.user_id,
-                labelIds=[self.reservation_label_id, 'UNREAD']
-            ).execute()
+            response = (
+                self.gmail.users()
+                .messages()
+                .list(
+                    userId=self.user_id, labelIds=[self.reservation_label_id, "UNREAD"]
+                )
+                .execute()
+            )
             messages = response.get("messages", [])
             for msg in messages:
                 self.mark_as_read(msg["id"])
@@ -231,14 +270,15 @@ class GmailService:
         except Exception as error:
             print(f"An error occurred while marking reserved mails as read: {error}")
 
+
 if __name__ == "__main__":
     assert os.getenv("TOKEN_PATH"), "TOKEN_PATH environment variable not set."
     service = GmailService()
     # ...existing test code or commented examples...
-    
+
     # Test process_unread_emails: Tags unread emails accordingly.
     # service.process_unread_emails()
-    
+
     # Test get_reserved_unread_emails_content: Retrieve and print content of unread reserved emails.
     # reserved_emails = service.get_reserved_unread_emails_content()
     # print("Reserved unread emails content:", reserved_emails)

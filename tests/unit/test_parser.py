@@ -1,15 +1,14 @@
 import pytest
+
 from services.mail_processing.parser import Parser
-import os
-import csv
 
 # Sample email data taken from your main code:
 FRENCH_SAMPLE = {
-    'Sender': 'Davy Chen <Davy03cosh@hotmail.fr>',
-    'Subject': 'TR : Réservation confirmée\xa0: Kurt Pihl arrive le 4 mai',
-    'Date': '2025-02-02',
-    'Snippet': '...',
-    'Message_body': (
+    "Sender": "Davy Chen <Davy03cosh@hotmail.fr>",
+    "Subject": "TR : Réservation confirmée\xa0: Kurt Pihl arrive le 4 mai",
+    "Date": "2025-02-02",
+    "Snippet": "...",
+    "Message_body": (
         "________________________________\r\nDe : Airbnb \r\nEnvoyé : dimanche 2 février 2025 11:37:12 (UTC+01:00) Brussels, Copenhagen, Madrid, Paris\r\n"
         "À : davy03cosh@hotmail.fr \r\nSujet : Réservation confirmée : Kurt Pihl arrive le 4 mai\r\n\r\n\r\n[Airbnb]\r\n"
         "Nouvelle réservation confirmée ! Kurt arrive le 4 mai\r\n\r\nEnvoyez un message pour confirmer les détails de l'entrée dans les lieux ou pour souhaiter la bienvenue à Kurt.\r\n\r\n"
@@ -23,15 +22,15 @@ FRENCH_SAMPLE = {
         "Frais de ménage\r\n\r\n65,00 €\r\n\r\nFrais de service voyageur\r\n\r\n184,41 €\r\n\r\nTaxes de séjour\r\n\r\n159,25 €\r\n\r\n"
         "Total (EUR)\r\n1\u202f388,66 €\r\nVersement de l'hôte\r\n\r\nFrais de chambre pour 6 nuits\r\n\r\n980,00 €\r\n\r\n"
         "Frais de ménage\r\n\r\n65,00 €\r\n\r\nFrais de service hôte (3.0 % + TVA)\r\n\r\n-37,62 €\r\n\r\nVous gagnez\r\n1\u202f007,38 €\r\n"
-    )
+    ),
 }
 
 ENGLISH_SAMPLE = {
-    'Sender': 'Davy Chen <Davy03cosh@hotmail.fr>',
-    'Subject': 'TR : Reservation confirmed - Orwis Huang arrives 2 Oct',
-    'Date': '2024-09-12',
-    'Snippet': '...',
-    'Message_body': (
+    "Sender": "Davy Chen <Davy03cosh@hotmail.fr>",
+    "Subject": "TR : Reservation confirmed - Orwis Huang arrives 2 Oct",
+    "Date": "2024-09-12",
+    "Snippet": "...",
+    "Message_body": (
         "________________________________\r\nDe : Airbnb \r\nEnvoyé : jeudi 12 septembre 2024 14:39:47 (UTC+01:00) Brussels, Copenhagen, Madrid, Paris\r\n"
         "À : davy03cosh@hotmail.fr \r\nSujet : Reservation confirmed - Orwis Huang arrives 2 Oct\r\n\r\n\r\n[Airbnb]\r\n"
         "New booking confirmed! Orwis arrives 2 Oct.\r\n\r\nSend a message to confirm check-in details or welcome Orwis.\r\n\r\n"
@@ -44,18 +43,18 @@ ENGLISH_SAMPLE = {
         "€ 65.00\r\n\r\nGuest service fee\r\n\r\n€ 70.96\r\n\r\nOccupancy taxes\r\n\r\n€ 65.00\r\n\r\nTotal (EUR)\r\n€ 600.96\r\n\r\n"
         "Host payout\r\n\r\n3-night room fee\r\n\r\n€ 400.00\r\n\r\nCleaning fee\r\n\r\n€ 65.00\r\n\r\nHost service fee (3.0% + VAT)\r\n\r\n"
         "-€ 16.74\r\n\r\nYou earn\r\n€ 448.26\r\n"
-    )
+    ),
 }
 
 
 def test_detect_language_french():
     parser = Parser(FRENCH_SAMPLE)
-    assert parser.detect_language() == 'fr'
+    assert parser.detect_language() == "fr"
 
 
 def test_detect_language_english():
     parser = Parser(ENGLISH_SAMPLE)
-    assert parser.detect_language() == 'en'
+    assert parser.detect_language() == "en"
 
 
 def test_parse_data_french():
@@ -98,6 +97,6 @@ def test_raw_string_input_language_unknown():
     raw_mail = "This is just a random email message with no specific language keywords."
     parser = Parser(raw_mail)
     # As no keywords are found, language should be 'unknown'
-    assert parser.detect_language() == 'unknown'
+    assert parser.detect_language() == "unknown"
     with pytest.raises(ValueError, match="Language not detected or unsupported."):
         parser.parse_data()

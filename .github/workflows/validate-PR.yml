@@ -55,12 +55,6 @@ jobs:
           curl -sSL https://install.python-poetry.org | python3 -
           export PATH="$HOME/.local/bin:$PATH"
 
-      - name: Install dependencies
-        run: |
-          # Add required dev dependencies for formatting and linting
-          poetry add --dev black flake8 isort || true
-          poetry install
-
       - name: Check code formatting and linting
         run: |
           poetry run black --check .

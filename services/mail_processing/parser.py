@@ -1,8 +1,8 @@
-import re
-import os
 import csv
+import os
+import re
 import warnings
-from typing import Dict, Any, Optional, Pattern, Match
+from typing import Any, Dict, Match, Optional, Pattern
 
 
 class Parser:
@@ -30,7 +30,7 @@ class Parser:
             match = re.search(
                 r"(Réservation confirmée|Reservation confirmed)\s*[:\-\u2013\u2014\u00A0]+\s*(.*?)\s+(?:arrive|arrives)",
                 subject_clean,
-                re.IGNORECASE
+                re.IGNORECASE,
             )
             if match:
                 self.person_name = match.group(2).strip() or "N/A"
@@ -51,7 +51,9 @@ class Parser:
         # Simple checks on certain keywords
         if any(keyword in body_lower for keyword in ["arrivée", "départ", "confirmée"]):
             return "fr"
-        elif any(keyword in body_lower for keyword in ["check-in", "checkout", "confirmed"]):
+        elif any(
+            keyword in body_lower for keyword in ["check-in", "checkout", "confirmed"]
+        ):
             return "en"
         return "unknown"
 
@@ -71,12 +73,11 @@ class Parser:
 
         # Search all regex patterns in the message body
         matches = {
-            key: pattern.search(self.message_body)
-            for key, pattern in patterns.items()
+            key: pattern.search(self.message_body) for key, pattern in patterns.items()
         }
 
         # Optionally print missing fields and raise warnings
-        
+
         for field_name, match in matches.items():
             if not match:
                 warnings.warn(f"{field_name} not found")
@@ -111,7 +112,7 @@ class Parser:
             "host_service_tax",
             "tourist_tax",
             "guest_payout",
-            "host_payout"
+            "host_payout",
         ]
         for field in numeric_fields:
             try:
@@ -148,16 +149,22 @@ class Parser:
             data["arrival_day_of_week"] = self.safe_get(match, 1)
             data["arrival_day"] = self.safe_get(match, 2)
             data["arrival_month"] = self.safe_get(match, 3)
-            data["arrival_year"] = self.safe_get(match, 4, self.mail_date[:4] if self.mail_date != "N/A" else "N/A")
+            data["arrival_year"] = self.safe_get(
+                match, 4, self.mail_date[:4] if self.mail_date != "N/A" else "N/A"
+            )
         else:
-            data.update({
-                "arrival_day_of_week": "N/A",
-                "arrival_day": "N/A",
-                "arrival_month": "N/A",
-                "arrival_year": "N/A"
-            })
+            data.update(
+                {
+                    "arrival_day_of_week": "N/A",
+                    "arrival_day": "N/A",
+                    "arrival_month": "N/A",
+                    "arrival_year": "N/A",
+                }
+            )
 
-    def parse_departure_date(self, match: Optional[Match], data: Dict[str, Any]) -> None:
+    def parse_departure_date(
+        self, match: Optional[Match], data: Dict[str, Any]
+    ) -> None:
         """
         Extract and set departure date details (day of week, day, month, year).
         """
@@ -165,16 +172,22 @@ class Parser:
             data["departure_day_of_week"] = self.safe_get(match, 1)
             data["departure_day"] = self.safe_get(match, 2)
             data["departure_month"] = self.safe_get(match, 3)
-            data["departure_year"] = self.safe_get(match, 4, self.mail_date[:4] if self.mail_date != "N/A" else "N/A")
+            data["departure_year"] = self.safe_get(
+                match, 4, self.mail_date[:4] if self.mail_date != "N/A" else "N/A"
+            )
         else:
-            data.update({
-                "departure_day_of_week": "N/A",
-                "departure_day": "N/A",
-                "departure_month": "N/A",
-                "departure_year": "N/A"
-            })
+            data.update(
+                {
+                    "departure_day_of_week": "N/A",
+                    "departure_day": "N/A",
+                    "departure_month": "N/A",
+                    "departure_year": "N/A",
+                }
+            )
 
-    def parse_number_of_guests(self, match: Optional[Match], data: Dict[str, Any]) -> None:
+    def parse_number_of_guests(
+        self, match: Optional[Match], data: Dict[str, Any]
+    ) -> None:
         """
         Extract and set the number of adults/children.
         """
@@ -182,12 +195,11 @@ class Parser:
             data["number_of_adults"] = self.safe_get(match, 1)
             data["number_of_children"] = self.safe_get(match, 2, "0")
         else:
-            data.update({
-                "number_of_adults": "N/A",
-                "number_of_children": "N/A"
-            })
+            data.update({"number_of_adults": "N/A", "number_of_children": "N/A"})
 
-    def parse_confirmation_code(self, match: Optional[Match], data: Dict[str, Any]) -> None:
+    def parse_confirmation_code(
+        self, match: Optional[Match], data: Dict[str, Any]
+    ) -> None:
         """
         Extract and set the confirmation code.
         """
@@ -198,16 +210,24 @@ class Parser:
         Extract and set cleaning fee.
         """
         raw_value = self.safe_get(match, 1)
-        data["cleaning_fee"] = raw_value.replace(",", ".") if raw_value != "N/A" else "N/A"
+        data["cleaning_fee"] = (
+            raw_value.replace(",", ".") if raw_value != "N/A" else "N/A"
+        )
 
-    def parse_guest_service_fee(self, match: Optional[Match], data: Dict[str, Any]) -> None:
+    def parse_guest_service_fee(
+        self, match: Optional[Match], data: Dict[str, Any]
+    ) -> None:
         """
         Extract and set guest service fee.
         """
         raw_value = self.safe_get(match, 1)
-        data["guest_service_fee"] = raw_value.replace(",", ".") if raw_value != "N/A" else "N/A"
+        data["guest_service_fee"] = (
+            raw_value.replace(",", ".") if raw_value != "N/A" else "N/A"
+        )
 
-    def parse_host_service_fee(self, match: Optional[Match], data: Dict[str, Any]) -> None:
+    def parse_host_service_fee(
+        self, match: Optional[Match], data: Dict[str, Any]
+    ) -> None:
         """
         Extract and set host service fee and tax.
         """
@@ -215,7 +235,9 @@ class Parser:
             # Named groups for clarity
             fee_raw = self.safe_get(match, "host_service_fee")
             tax_raw = self.safe_get(match, "tax")
-            data["host_service_fee"] = fee_raw.replace(",", ".") if fee_raw != "N/A" else "N/A"
+            data["host_service_fee"] = (
+                fee_raw.replace(",", ".") if fee_raw != "N/A" else "N/A"
+            )
             data["host_service_tax"] = tax_raw if tax_raw != "N/A" else "N/A"
         else:
             data["host_service_fee"] = "N/A"
@@ -226,9 +248,13 @@ class Parser:
         Extract and set tourist tax.
         """
         raw_value = self.safe_get(match, 1)
-        data["tourist_tax"] = raw_value.replace(",", ".") if raw_value != "N/A" else "N/A"
+        data["tourist_tax"] = (
+            raw_value.replace(",", ".") if raw_value != "N/A" else "N/A"
+        )
 
-    def parse_price_by_night_guest(self, match: Optional[Match], data: Dict[str, Any]) -> None:
+    def parse_price_by_night_guest(
+        self, match: Optional[Match], data: Dict[str, Any]
+    ) -> None:
         """
         Extract and set price per night, number of nights, and total price.
         """
@@ -237,27 +263,35 @@ class Parser:
             data["number_of_nights"] = self.safe_get(match, 2)
             data["total_nights_cost"] = self.safe_get(match, 3).replace(",", ".")
         else:
-            data.update({
-                "price_by_night": "N/A",
-                "number_of_nights": "N/A",
-                "total_nights_cost": "N/A"
-            })
+            data.update(
+                {
+                    "price_by_night": "N/A",
+                    "number_of_nights": "N/A",
+                    "total_nights_cost": "N/A",
+                }
+            )
 
     def parse_guest_payout(self, match: Optional[Match], data: Dict[str, Any]) -> None:
         """
         Extract and set the total payout from the guest (i.e., total amount guest pays).
         """
         raw_value = self.safe_get(match, 1)
-        data["guest_payout"] = raw_value.replace(",", ".") if raw_value != "N/A" else "N/A"
+        data["guest_payout"] = (
+            raw_value.replace(",", ".") if raw_value != "N/A" else "N/A"
+        )
 
     def parse_host_payout(self, match: Optional[Match], data: Dict[str, Any]) -> None:
         """
         Extract and set the host's final payout.
         """
         raw_value = self.safe_get(match, 1)
-        data["host_payout"] = raw_value.replace(",", ".") if raw_value != "N/A" else "N/A"
+        data["host_payout"] = (
+            raw_value.replace(",", ".") if raw_value != "N/A" else "N/A"
+        )
 
-    def parse_guest_location(self, match: Optional[Match], data: Dict[str, Any]) -> None:
+    def parse_guest_location(
+        self, match: Optional[Match], data: Dict[str, Any]
+    ) -> None:
         """
         Extract and set the guest's country/city.
         """
@@ -293,19 +327,32 @@ class Parser:
                 "departure_date": re.compile(
                     r"(?:Départ\r\n\r\n)(\w{3})\.\s(\d{1,2})\s(janv|févr|mars|avr|mai|juin|juil|août|sept|oct|nov|déc)(?:\.\s(\d{4}))?"
                 ),
-                "number_of_guests": re.compile(r"(?:Voyageurs)\r\n\r\n(\d{1,2})\s(?:adultes|adulte)(?:,\s(\d{1,2}))?"),
-                "confirmation_code": re.compile(r"(?<=Code\sde\sconfirmation\r\n\r\n)(\w{10})"),
+                "number_of_guests": re.compile(
+                    r"(?:Voyageurs)\r\n\r\n(\d{1,2})\s(?:adultes|adulte)(?:,\s(\d{1,2}))?"
+                ),
+                "confirmation_code": re.compile(
+                    r"(?<=Code\sde\sconfirmation\r\n\r\n)(\w{10})"
+                ),
                 "price_by_night_guest": re.compile(
                     r"(?<=Le\svoyageur\sa\spayé\r\n\r\n)([\d,\.]+)\s€\sx\s(\d{1,2})\snuits?\r\n\r\n([\d,\.\u202f]+)\s€"
                 ),
-                "cleaning_fee": re.compile(r"Frais de ménage\s*(?:pour les séjours courte durée\s*)?\r?\n\s*([\d\,\.]+) €", re.IGNORECASE),
-                "guest_service_fee": re.compile(r"(?<=Frais\sde\sservice\svoyageur\r\n\r\n)([\d,\.]+)\s€"),
+                "cleaning_fee": re.compile(
+                    r"Frais de ménage\s*(?:pour les séjours courte durée\s*)?\r?\n\s*([\d\,\.]+) €",
+                    re.IGNORECASE,
+                ),
+                "guest_service_fee": re.compile(
+                    r"(?<=Frais\sde\sservice\svoyageur\r\n\r\n)([\d,\.]+)\s€"
+                ),
                 "host_service_fee": re.compile(
                     r"service(?:\shôte\s\((?P<tax>\d.\d\s\%)\s\+\sTVA\))?\r\n\r\n(?P<host_service_fee>-[\d,\.]+)\s€"
                 ),
                 "tourist_tax": re.compile(r"Taxes de séjour\s*\r?\n\s*([\d,\.]+)\s€"),
-                "host_payout": re.compile(r"(?:gagnez)?\r\n([\d\.,\u202f]+)\s€(?:\r\n\r\n)(?:L'argent)?"),
-                "guest_payout": re.compile(r"(?<=Total\s\(EUR\)\r\n)([\d\.,\u202f]+)(?=\s?\€\r\nVersement)"),
+                "host_payout": re.compile(
+                    r"(?:gagnez)?\r\n([\d\.,\u202f]+)\s€(?:\r\n\r\n)(?:L'argent)?"
+                ),
+                "guest_payout": re.compile(
+                    r"(?<=Total\s\(EUR\)\r\n)([\d\.,\u202f]+)(?=\s?\€\r\nVersement)"
+                ),
                 "guest_location": guest_location_pattern,
             }
         elif language == "en":
@@ -316,19 +363,33 @@ class Parser:
                 "departure_date": re.compile(
                     r"(?:Checkout\r\n\r\n)(\w{3}),\s(\d{1,2})\s(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?:\s(\d{4}))?"
                 ),
-                "number_of_guests": re.compile(r"(?:Guests)\r\n\r\n(\d{1,2})\s(?:adults|adult)(?:,\s(\d{1,2}))?"),
-                "confirmation_code": re.compile(r"(?<=Confirmation\scode\r\n\r\n)(\w{10})"),
+                "number_of_guests": re.compile(
+                    r"(?:Guests)\r\n\r\n(\d{1,2})\s(?:adults|adult)(?:,\s(\d{1,2}))?"
+                ),
+                "confirmation_code": re.compile(
+                    r"(?<=Confirmation\scode\r\n\r\n)(\w{10})"
+                ),
                 "price_by_night_guest": re.compile(
                     r"(?<=Guest\spaid\r\n\r\n)€\s([\d,\.]+)\sx\s(\d{1,2})\snights?\r\n\r\n€\s([\d,\.]+)"
                 ),
-                "cleaning_fee": re.compile(r"(?<=Cleaning\sfee\r\n\r\n)€\s([\d,\.]+)", re.IGNORECASE),
-                "guest_service_fee": re.compile(r"(?<=Guest\sservice\sfee\r\n\r\n)€\s([\d,\.]+)"),
+                "cleaning_fee": re.compile(
+                    r"(?<=Cleaning\sfee\r\n\r\n)€\s([\d,\.]+)", re.IGNORECASE
+                ),
+                "guest_service_fee": re.compile(
+                    r"(?<=Guest\sservice\sfee\r\n\r\n)€\s([\d,\.]+)"
+                ),
                 "host_service_fee": re.compile(
                     r"fee(?:\s\((?P<tax>\d.\d\%)\s\+\sVAT\))?\r\n\r\n(?P<host_service_fee>-€\s[\d,\.]+)"
                 ),
-                "tourist_tax": re.compile(r"(?<=\s€\s)([\d,\.]+)*\sin\sOccupancy\sTaxes\."),
-                "host_payout": re.compile(r"(?:You\searn)?\r\n€\s([\d,\.]+)(?:\r\n\r\n)(?:The\smoney)?"),
-                "guest_payout": re.compile(r"(?<=Total\s\(EUR\)\r\n)€\s?([\d\.,\u202f]+)(?=\r\nHost\spayout)"),
+                "tourist_tax": re.compile(
+                    r"(?<=\s€\s)([\d,\.]+)*\sin\sOccupancy\sTaxes\."
+                ),
+                "host_payout": re.compile(
+                    r"(?:You\searn)?\r\n€\s([\d,\.]+)(?:\r\n\r\n)(?:The\smoney)?"
+                ),
+                "guest_payout": re.compile(
+                    r"(?<=Total\s\(EUR\)\r\n)€\s?([\d\.,\u202f]+)(?=\r\nHost\spayout)"
+                ),
                 "guest_location": guest_location_pattern,
             }
         else:
@@ -350,7 +411,9 @@ def append_booking_data_to_csv(filename: str, data: Dict[str, Any]) -> None:
 
     # Check if code already exists
     if confirmation_code_exists_in_csv(filename, confirmation_code):
-        print(f"Confirmation code {confirmation_code} already exists. Data will not be appended.")
+        print(
+            f"Confirmation code {confirmation_code} already exists. Data will not be appended."
+        )
         return
 
     with open(filename, "a", encoding="utf-8", newline="") as csvfile:
@@ -387,7 +450,9 @@ def append_booking_data_to_csv(filename: str, data: Dict[str, Any]) -> None:
             writer.writeheader()
 
         writer.writerow(data)
-        print(f"Data with confirmation code {confirmation_code} has been appended to {filename}.")
+        print(
+            f"Data with confirmation code {confirmation_code} has been appended to {filename}."
+        )
 
 
 def confirmation_code_exists_in_csv(filename: str, confirmation_code: str) -> bool:
@@ -404,6 +469,6 @@ def confirmation_code_exists_in_csv(filename: str, confirmation_code: str) -> bo
     if not os.path.exists(filename):
         return False
 
-    with open(filename, 'r', encoding='utf-8') as csvfile:
+    with open(filename, "r", encoding="utf-8") as csvfile:
         reader = csv.DictReader(csvfile)
-        return any(row.get('confirmation_code') == confirmation_code for row in reader)
+        return any(row.get("confirmation_code") == confirmation_code for row in reader)

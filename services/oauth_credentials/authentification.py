@@ -1,21 +1,25 @@
-import json
-from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request
 import datetime
+import json
+
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+
 
 def load_credentials(token_path):
-    with open(token_path, 'r') as token_file:
+    with open(token_path, "r") as token_file:
         creds_data = json.load(token_file)
         creds = Credentials.from_authorized_user_info(creds_data)
     return creds
+
 
 def refresh_access_token(credentials, token_path):
     if credentials.expired and credentials.refresh_token:
         credentials.refresh(Request())
         # Save the updated credentials back to the file
-        with open(token_path, 'w') as token_file:
+        with open(token_path, "w") as token_file:
             token_file.write(credentials.to_json())
     return credentials
+
 
 def print_token_ttl(credentials):
     if credentials.expiry:
