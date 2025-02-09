@@ -289,8 +289,8 @@ class Parser:
         seps = [m.start() for m in re.finditer(r"[.,]", cleaned)]
         if len(seps) > 1:
             # Last punctuation is the decimal
-            main = re.sub(r"[.,]", "", cleaned[:seps[-1]])
-            decimal = cleaned[seps[-1]:].replace(",", ".")
+            main = re.sub(r"[.,]", "", cleaned[: seps[-1]])
+            decimal = cleaned[seps[-1] :].replace(",", ".")
             return main + decimal
         return cleaned.replace(",", ".")
 
