@@ -4,7 +4,6 @@ version = "0.0.2"
 description = "A set of tools for managing BnB properties efficiently."
 authors = ["Marc <128506536+MarcChen@users.noreply.github.com>"]
 packages = [
-    { include = "oauth_credentials", from = "services" },
     { include = "services" }
 ]
 
