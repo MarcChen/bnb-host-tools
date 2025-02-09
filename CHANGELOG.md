@@ -69,3 +69,26 @@ This pull request includes several changes to the codebase, primarily focusing o
 
 * [`services/mail_processing/parser.py`](diffhunk://#diff-c08f5a1148c23251f9e5c8ac593a309758f3f8427c1119499d05f5f3c3a38949L13-R20): Added a `debug` parameter to the `Parser` class to facilitate debugging during email parsing.
 
+## [0.2.1] - 2025-02-09
+- Merged PR #4 by @MarcChen: Fix : Regexp and casting issue 
+This pull request includes several updates to the `mail_processor.py` and `parser.py` files to improve debugging capabilities and simplify code.
+
+### Debugging enhancements:
+
+* Added a `debug` parameter to the `Parser` class within the `parse_reserved_mails` method to enhance debugging capabilities.
+* Modified the `run_workflow` method to conditionally execute certain steps based on the `debug` flag, preventing unnecessary operations during debugging. [[1]](diffhunk://#diff-461eeb680ac665674f514f3bf1a1bc583a620a9ac28854f873df69120275984eL231-R223) [[2]](diffhunk://#diff-461eeb680ac665674f514f3bf1a1bc583a620a9ac28854f873df69120275984eL247-L270)
+
+### Code simplification:
+
+* Simplified the `fix_payout_value` method in `parser.py` by replacing a substring instead of using multiple string operations.
+* Updated the regex pattern in the `get_language_patterns` method to handle additional cases for host payout parsing.
+
+### Code reorganization:
+
+* Reorganized imports in `mail_processor.py` for better readability and maintainability. [[1]](diffhunk://#diff-461eeb680ac665674f514f3bf1a1bc583a620a9ac28854f873df69120275984eL1) [[2]](diffhunk://#diff-461eeb680ac665674f514f3bf1a1bc583a620a9ac28854f873df69120275984eR9-R10)
+
+### Removal of commented-out code:
+
+* Removed unnecessary commented-out debugging code from the `parse_reserved_mails` method to clean up the codebase.
+* Removed unused commented-out code related to saving reservations to CSV in the `run_workflow` method.
+
