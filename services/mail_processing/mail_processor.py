@@ -19,32 +19,22 @@ class MailProcessorService:
         print(f"Mail content : {reserved_emails}") if self.debug else None
         parsed_results = []
 
+        # fmt: off
         month_mapping = {
-            "jan": "01",
-            "janv": "01",
-            "fév": "02",
-            "févr": "02",
-            "feb": "02",
-            "mar": "03",
-            "mars": "03",
-            "avr": "04",
-            "apr": "04",
-            "mai": "05",
-            "may": "05",
-            "jun": "06",
-            "juin": "06",
-            "jul": "07",
-            "juil": "07",
-            "août": "08",
-            "aoû": "08",
-            "aug": "08",
-            "sep": "09",
-            "sept": "09",
+            "jan": "01", "janv": "01",
+            "fév": "02", "févr": "02", "feb": "02",
+            "mar": "03", "mars": "03",
+            "avr": "04", "apr": "04",
+            "mai": "05", "may": "05",
+            "jun": "06", "juin": "06",
+            "jul": "07", "juil": "07",
+            "août": "08", "aoû": "08", "aug": "08",
+            "sep": "09", "sept": "09",
             "oct": "10",
             "nov": "11",
-            "déc": "12",
-            "dec": "12",
+            "déc": "12", "dec": "12"
         }
+        # fmt: on
 
         for email in reserved_emails:
             parser = Parser(email)
