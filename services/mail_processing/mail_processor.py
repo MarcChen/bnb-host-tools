@@ -17,7 +17,9 @@ class MailProcessorService:
 
     def parse_reserved_mails(self) -> list:
         """Second step: Get reserved emails and parse them"""
-        reserved_emails = self.gmail_service.get_unread_emails_content_by_label(label="reserved")
+        reserved_emails = self.gmail_service.get_unread_emails_content_by_label(
+            label="reserved"
+        )
         print(f"Mail content : {reserved_emails}") if self.debug else None
         parsed_results = []
 
@@ -91,32 +93,45 @@ class MailProcessorService:
 
     def quality_check(self, reservations: list) -> None:
         """Performs quality checks on reservations:
-           - Ensures each reservation has a valid confirmation_code (exists and isn't 'N/A').
-           - Ensures each reservation has a valid host_payout (exists and isn't 'N/A').
-           - Checks for duplicate confirmation codes.
+        - Ensures each reservation has a valid confirmation_code (exists and isn't 'N/A').
+        - Ensures each reservation has a valid host_payout (exists and isn't 'N/A').
+        - Checks for duplicate confirmation codes.
         """
         seen_codes = set()
         for reservation in reservations:
             code = reservation.get("confirmation_code")
             host_payout = reservation.get("host_payout")
-            
+
             if not code or code == "N/A":
-                raise ValueError("Invalid reservation: 'confirmation_code' is missing or 'N/A'.")
+                raise ValueError(
+                    "Invalid reservation: 'confirmation_code' is missing or 'N/A'."
+                )
             if not host_payout or host_payout == "N/A":
-                raise ValueError(f"Invalid reservation with code {code}: 'host_payout' is missing or 'N/A'.")
+                raise ValueError(
+                    f"Invalid reservation with code {code}: 'host_payout' is missing or 'N/A'."
+                )
             if code in seen_codes:
                 raise ValueError(f"Duplicate reservation code found: {code}")
-            seen_codes.add(code) 
+            seen_codes.add(code)
 
     def process_review_mails(self) -> None:
         """Process review emails"""
-        review_emails = self.gmail_service.get_unread_emails_content_by_label(label="review")
+        review_emails = self.gmail_service.get_unread_emails_content_by_label(
+            label="review"
+        )
         try:
             for mail_content in review_emails:
-                reservation_info = self.gmail_service.parse_reservation_header(mail_content)
+                reservation_info = self.gmail_service.parse_reservation_header(
+                    mail_content
+                )
                 if reservation_info["type"] == "review":
-                    print(f"Full name {reservation_info['full_name']} and rating {reservation_info['rating']}")
-                    self.notion_client.update_row_by_name(name=reservation_info['full_name'], rating=int(reservation_info['rating']))
+                    print(
+                        f"Full name {reservation_info['full_name']} and rating {reservation_info['rating']}"
+                    )
+                    self.notion_client.update_row_by_name(
+                        name=reservation_info["full_name"],
+                        rating=int(reservation_info["rating"]),
+                    )
             self.gmail_service.mark_mails_as_read_for_label(label="review")
         except Exception as error:
             print(f"An error occurred while processing unread emails: {error}")

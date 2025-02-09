@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from dateutil import parser
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+
 from services.google_integration.authentification import (
     load_credentials,
     print_token_ttl,
@@ -190,13 +191,25 @@ class GmailService:
         match_res_en = re.search(pattern_res_en, subject, re.IGNORECASE)
         match_res_fr = re.search(pattern_res_fr, subject, re.IGNORECASE)
         if match_res_en:
-            return {"type": "reservation", "full_name": match_res_en.group("name").strip(), "rating": None}
+            return {
+                "type": "reservation",
+                "full_name": match_res_en.group("name").strip(),
+                "rating": None,
+            }
         elif match_res_fr:
-            return {"type": "reservation", "full_name": match_res_fr.group("name").strip(), "rating": None}
+            return {
+                "type": "reservation",
+                "full_name": match_res_fr.group("name").strip(),
+                "rating": None,
+            }
         pattern_review = r"^TR\s*:\s*(?P<name>\S+).*?(?P<rating>\d+)(?:-star|\sétoiles)"
         match_review = re.search(pattern_review, subject, re.IGNORECASE)
         if match_review:
-            return {"type": "review", "full_name": match_review.group("name").strip(), "rating": match_review.group("rating")}
+            return {
+                "type": "review",
+                "full_name": match_review.group("name").strip(),
+                "rating": match_review.group("rating"),
+            }
         return {"type": "none", "full_name": None, "rating": None}
 
     def process_unread_emails(self) -> None:
@@ -255,9 +268,7 @@ class GmailService:
             response = (
                 self.gmail.users()
                 .messages()
-                .list(
-                    userId=self.user_id, labelIds=[label_id, "UNREAD"]
-                )
+                .list(userId=self.user_id, labelIds=[label_id, "UNREAD"])
                 .execute()
             )
             messages = response.get("messages", [])
@@ -278,18 +289,18 @@ class GmailService:
         This method retrieves the unique identifier for the specified label and then fetches all unread
         messages that are tagged with that label. For each message found, it updates the message status
         to mark it as read. If the label is not found, a message is printed and the method exits gracefully.
-        
+
         Note:
             - The method assumes that emails must have both the specified label and the "UNREAD" status
               to be processed.
             - Any exceptions that occur during the API calls will be caught and logged.
-            
+
         Args:
             label (str): The name of the label for which the unread emails should be marked as read.
-        
+
         Raises:
             Exception: Logs any unexpected errors encountered during the API request execution.
-        
+
         Example:
             mark_mails_as_read_for_label("Important")
         """
@@ -309,5 +320,6 @@ class GmailService:
                 self.mark_as_read(msg["id"])
             print(f"Marked {len(messages)} mails with label '{label}' as read.")
         except Exception as error:
-            print(f"An error occurred while marking mails with label '{label}' as read: {error}")
-
+            print(
+                f"An error occurred while marking mails with label '{label}' as read: {error}"
+            )

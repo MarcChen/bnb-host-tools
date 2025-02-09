@@ -10,7 +10,7 @@ class Parser:
     A parser for extracting booking details from an email message.
     """
 
-    def __init__(self, mail: Any, debug : bool = False) -> None:
+    def __init__(self, mail: Any, debug: bool = False) -> None:
         """
         Initializes the Parser with the provided mail.
 
@@ -115,7 +115,9 @@ class Parser:
             "host_payout",
         ]
         for field in numeric_fields:
-            print(f"Numeric field {field} before casted: {data[field]}") if self.debug else None
+            print(
+                f"Numeric field {field} before casted: {data[field]}"
+            ) if self.debug else None
             try:
                 data[field] = float(data[field].replace("\u202f", ""))
             except ValueError:
@@ -237,7 +239,9 @@ class Parser:
             fee_raw = self.safe_get(match, "host_service_fee")
             tax_raw = self.safe_get(match, "tax")
             data["host_service_fee"] = (
-                fee_raw.replace(",", ".").replace("€", "").replace(" ", "") if fee_raw != "N/A" else "N/A"
+                fee_raw.replace(",", ".").replace("€", "").replace(" ", "")
+                if fee_raw != "N/A"
+                else "N/A"
             )
             data["host_service_tax"] = tax_raw if tax_raw != "N/A" else "N/A"
         else:
@@ -282,12 +286,12 @@ class Parser:
         cleaned = raw_value.replace("\u202f", "")
         if cleaned.count(",") == 2:
             first_idx = cleaned.find(",")
-            cleaned = cleaned[:first_idx] + cleaned[first_idx+1:]
+            cleaned = cleaned[:first_idx] + cleaned[first_idx + 1 :]
             cleaned = cleaned.replace(",", ".")
             return cleaned
         elif cleaned.count(",") == 1:
             first_idx = cleaned.find(",")
-            return cleaned[:first_idx] + cleaned[first_idx+1:]
+            return cleaned[:first_idx] + cleaned[first_idx + 1 :]
         return cleaned
 
     def parse_guest_payout(self, match: Optional[Match], data: Dict[str, Any]) -> None:
@@ -306,7 +310,6 @@ class Parser:
         """
         raw_value = self.safe_get(match, 1)
         data["host_payout"] = self.fix_payout_value(raw_value)
-
 
     def parse_guest_location(
         self, match: Optional[Match], data: Dict[str, Any]

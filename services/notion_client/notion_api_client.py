@@ -51,7 +51,10 @@ class NotionClient:
                 "Departure DayOfWeek",
                 lambda v: {"rich_text": [{"text": {"content": v}}]},
             ),
-            "host_service_tax": ("Host Service Tax", lambda v: {"rich_text": [{"text": {"content": v}}]}),
+            "host_service_tax": (
+                "Host Service Tax",
+                lambda v: {"rich_text": [{"text": {"content": v}}]},
+            ),
             "guest_payout": ("Guest Payout", lambda v: {"number": v}),
             "mail_date": ("Mail Date", lambda v: {"date": {"start": v}}),
             "number_of_child": ("Number of child", lambda v: {"number": v}),
@@ -164,10 +167,10 @@ class NotionClient:
             warnings.warn(f"No page found with name containing: {name}", UserWarning)
             return {}
         page_id = results[0]["id"]
-        update_properties = {
-            "Rating": {"number": rating}
-        }
-        updated_page = self.client.pages.update(page_id=page_id, properties=update_properties)
+        update_properties = {"Rating": {"number": rating}}
+        updated_page = self.client.pages.update(
+            page_id=page_id, properties=update_properties
+        )
         return updated_page
 
 
