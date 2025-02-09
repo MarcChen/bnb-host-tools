@@ -279,19 +279,20 @@ class Parser:
 
     def fix_payout_value(self, raw_value: str) -> str:
         """
-        Fixes payout value formatting.
-        If there are 2 commas, removes the first comma and replaces the second with a dot.
-        If only one comma is present, removes it.
+        Cleans numeric string by removing thousands separators and ensuring a single decimal point.
         """
-        cleaned = raw_value.replace("\u202f", "")
-        if cleaned.count(",") == 2:
-            first_idx = cleaned.find(",")
-            cleaned = cleaned[:first_idx] + cleaned[first_idx + 1 :]
-            cleaned = cleaned.replace(",", ".")
-            return cleaned
-        elif cleaned.count(",") == 1:
-            return cleaned.replace(",", ".")
-        return cleaned
+
+        cleaned = raw_value.replace("\u202f", "").strip()
+        # Remove any non-digit or punctuation except '.' and ','
+        cleaned = re.sub(r"[^\d.,]", "", cleaned)
+        # Find all punctuation positions
+        seps = [m.start() for m in re.finditer(r"[.,]", cleaned)]
+        if len(seps) > 1:
+            # Last punctuation is the decimal
+            main = re.sub(r"[.,]", "", cleaned[:seps[-1]])
+            decimal = cleaned[seps[-1]:].replace(",", ".")
+            return main + decimal
+        return cleaned.replace(",", ".")
 
     def parse_guest_payout(self, match: Optional[Match], data: Dict[str, Any]) -> None:
         """
