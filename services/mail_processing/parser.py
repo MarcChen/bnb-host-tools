@@ -10,13 +10,14 @@ class Parser:
     A parser for extracting booking details from an email message.
     """
 
-    def __init__(self, mail: Any) -> None:
+    def __init__(self, mail: Any, debug : bool = False) -> None:
         """
         Initializes the Parser with the provided mail.
 
         Args:
             mail (Any): The email content to parse (can be a string or dict).
         """
+        self.debug = debug
         self.person_name: str = "N/A"
         self.mail_date: str = "N/A"
 
@@ -109,12 +110,12 @@ class Parser:
             "cleaning_fee",
             "guest_service_fee",
             "host_service_fee",
-            "host_service_tax",
             "tourist_tax",
             "guest_payout",
             "host_payout",
         ]
         for field in numeric_fields:
+            print(f"Numeric field {field} before casted: {data[field]}") if self.debug else None
             try:
                 data[field] = float(data[field].replace("\u202f", ""))
             except ValueError:
@@ -236,7 +237,7 @@ class Parser:
             fee_raw = self.safe_get(match, "host_service_fee")
             tax_raw = self.safe_get(match, "tax")
             data["host_service_fee"] = (
-                fee_raw.replace(",", ".") if fee_raw != "N/A" else "N/A"
+                fee_raw.replace(",", ".").replace("€", "").replace(" ", "") if fee_raw != "N/A" else "N/A"
             )
             data["host_service_tax"] = tax_raw if tax_raw != "N/A" else "N/A"
         else:
@@ -261,7 +262,8 @@ class Parser:
         if match:
             data["price_by_night"] = self.safe_get(match, 1).replace(",", ".")
             data["number_of_nights"] = self.safe_get(match, 2)
-            data["total_nights_cost"] = self.safe_get(match, 3).replace(",", ".")
+            night_cost_raw = self.safe_get(match, 3)
+            data["total_nights_cost"] = self.fix_payout_value(night_cost_raw)
         else:
             data.update(
                 {
@@ -271,23 +273,40 @@ class Parser:
                 }
             )
 
+    def fix_payout_value(self, raw_value: str) -> str:
+        """
+        Fixes payout value formatting.
+        If there are 2 commas, removes the first comma and replaces the second with a dot.
+        If only one comma is present, removes it.
+        """
+        cleaned = raw_value.replace("\u202f", "")
+        if cleaned.count(",") == 2:
+            first_idx = cleaned.find(",")
+            cleaned = cleaned[:first_idx] + cleaned[first_idx+1:]
+            cleaned = cleaned.replace(",", ".")
+            return cleaned
+        elif cleaned.count(",") == 1:
+            first_idx = cleaned.find(",")
+            return cleaned[:first_idx] + cleaned[first_idx+1:]
+        return cleaned
+
     def parse_guest_payout(self, match: Optional[Match], data: Dict[str, Any]) -> None:
         """
-        Extract and set the total payout from the guest (i.e., total amount guest pays).
+        Extract and set the total payout from the guest.
         """
         raw_value = self.safe_get(match, 1)
-        data["guest_payout"] = (
-            raw_value.replace(",", ".") if raw_value != "N/A" else "N/A"
-        )
+        if raw_value != "N/A":
+            data["guest_payout"] = self.fix_payout_value(raw_value)
+        else:
+            data["guest_payout"] = "N/A"
 
     def parse_host_payout(self, match: Optional[Match], data: Dict[str, Any]) -> None:
         """
         Extract and set the host's final payout.
         """
         raw_value = self.safe_get(match, 1)
-        data["host_payout"] = (
-            raw_value.replace(",", ".") if raw_value != "N/A" else "N/A"
-        )
+        data["host_payout"] = self.fix_payout_value(raw_value)
+
 
     def parse_guest_location(
         self, match: Optional[Match], data: Dict[str, Any]
@@ -385,7 +404,7 @@ class Parser:
                     r"(?<=\s€\s)([\d,\.]+)*\sin\sOccupancy\sTaxes\."
                 ),
                 "host_payout": re.compile(
-                    r"(?:You\searn)?\r\n€\s([\d,\.]+)(?:\r\n\r\n)(?:The\smoney)?"
+                    r"(?:earn|EUR\))\r\n€\s([\d\.,\u202f]+)(?:\r\n\r\n)(?:The|Your)"
                 ),
                 "guest_payout": re.compile(
                     r"(?<=Total\s\(EUR\)\r\n)€\s?([\d\.,\u202f]+)(?=\r\nHost\spayout)"
