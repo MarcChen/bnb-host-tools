@@ -92,3 +92,11 @@ This pull request includes several updates to the `mail_processor.py` and `parse
 * Removed unnecessary commented-out debugging code from the `parse_reserved_mails` method to clean up the codebase.
 * Removed unused commented-out code related to saving reservations to CSV in the `run_workflow` method.
 
+## [0.2.2] - 2025-02-09
+- Merged PR #5 by @MarcChen: small fix - casting issue resolved
+This pull request includes a significant change to the `fix_payout_value` method in `services/mail_processing/parser.py`. The update enhances the method's functionality by improving how numeric strings are cleaned and formatted.
+
+Improvements to numeric string cleaning and formatting:
+
+* [`services/mail_processing/parser.py`](diffhunk://#diff-c08f5a1148c23251f9e5c8ac593a309758f3f8427c1119499d05f5f3c3a38949L282-L294): The `fix_payout_value` method has been updated to remove thousands separators, ensure a single decimal point, and strip any non-digit or punctuation characters except for '.' and ','. This change improves the accuracy and reliability of the numeric string cleaning process.
+
