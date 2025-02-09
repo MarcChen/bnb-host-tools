@@ -87,7 +87,7 @@ jobs:
       - name: Install Dependencies
         shell: bash
         run: |
-          poetry install --no-dev
+          poetry install --without dev
         working-directory: ${{ github.workspace }}
 
       - name: Generate Google API Token
