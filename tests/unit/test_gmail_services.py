@@ -160,7 +160,8 @@ def test_parse_reservation_header(gmail_service_instance):
     # Test parse_reservation_header with a dummy subject.
     content = {"Subject": "Reservation confirmed: John Doe"}
     result = gmail_service_instance.parse_reservation_header(content)
-    assert result["is_reservation"] is True
+    # Check the 'type' key instead of 'is_reservation'
+    assert result["type"] == "reservation"
     assert result["full_name"] == "John Doe"
 
 
@@ -170,3 +171,92 @@ def test_mark_as_read(gmail_service_instance):
         gmail_service_instance.mark_as_read("1")
     except HttpError:
         pytest.fail("mark_as_read raised HttpError unexpectedly.")
+
+
+def test_tag_email(gmail_service_instance, monkeypatch):
+    # Ensure tag_email does not raise errors.
+    called = False
+
+    def dummy_modify(self, **kwargs):
+        nonlocal called
+        called = True
+
+        class DummyResponse:
+            def execute(self):
+                return {}
+
+        return DummyResponse()
+
+    # Force get_label_id to return a dummy label ID
+    monkeypatch.setattr(
+        gmail_service_instance, "get_label_id", lambda label: "dummy_label_id"
+    )
+    # Override the modify method on the DummyMessages class used in the service instance
+    messages_instance = gmail_service_instance.gmail.users().messages()
+    monkeypatch.setattr(messages_instance.__class__, "modify", dummy_modify)
+    gmail_service_instance.tag_email("dummy_msg_id", "reserved")
+    assert called is True
+
+
+def test_process_unread_emails(gmail_service_instance, monkeypatch):
+    # Simply ensure process_unread_emails runs without error.
+    monkeypatch.setattr(gmail_service_instance, "list_unread_mails", lambda: ["1"])
+    # Force a reservation email for id "1"
+    monkeypatch.setattr(
+        gmail_service_instance,
+        "get_mail_content",
+        lambda msg_id: {"Subject": "Reservation confirmed: Jane Doe"},
+    )
+    monkeypatch.setattr(
+        gmail_service_instance, "get_label_id", lambda label: "dummy_label_id"
+    )
+    # Patch modify to do nothing.
+    monkeypatch.setattr(
+        gmail_service_instance.gmail.users().messages(),
+        "modify",
+        lambda **kwargs: type("Dummy", (), {"execute": lambda: {}})(),
+    )
+    gmail_service_instance.process_unread_emails()
+
+
+def test_get_unread_emails_content_by_label(gmail_service_instance, monkeypatch):
+    # Simulate get_unread_emails_content_by_label method.
+    dummy_response = {"messages": [{"id": "1"}, {"id": "2"}]}
+    monkeypatch.setattr(
+        gmail_service_instance.gmail.users().messages(),
+        "list",
+        lambda **kwargs: type("Dummy", (), {"execute": lambda: dummy_response})(),
+    )
+    monkeypatch.setattr(
+        gmail_service_instance,
+        "get_mail_content",
+        lambda msg_id: {"id": msg_id, "Subject": "Dummy"},
+    )
+    # Override get_label_id to trigger the INBOX branch
+    monkeypatch.setattr(gmail_service_instance, "get_label_id", lambda label: "INBOX")
+    result = gmail_service_instance.get_unread_emails_content_by_label("reserved")
+    assert isinstance(result, list)
+    assert len(result) == 2
+
+
+def test_mark_mails_as_read_for_label(gmail_service_instance, monkeypatch):
+    # Simulate marking emails as read.
+    dummy_response = {"messages": [{"id": "1"}]}
+    # Override get_label_id to trigger the "reserved" branch in DummyMessages.list
+    monkeypatch.setattr(
+        gmail_service_instance, "get_label_id", lambda label: "reserved"
+    )
+    monkeypatch.setattr(
+        gmail_service_instance.gmail.users().messages(),
+        "list",
+        lambda **kwargs: type("Dummy", (), {"execute": lambda: dummy_response})(),
+    )
+    called = False
+
+    def dummy_mark_as_read(msg_id: str):
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(gmail_service_instance, "mark_as_read", dummy_mark_as_read)
+    gmail_service_instance.mark_mails_as_read_for_label("reserved")
+    assert called is True
