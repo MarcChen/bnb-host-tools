@@ -341,10 +341,10 @@ class Parser:
         if language == "fr":
             return {
                 "arrival_date": re.compile(
-                    r"(?:Arrivée\r\n\r\n)(\w{3})\.\s(\d{1,2})\s(janv|févr|mars|avr|mai|juin|juil|août|sept|oct|nov|déc)(?:\.\s(\d{4}))?"
+                    r"(?:Arrivée\r\n\r\n)(\w{3})\.\s(\d{1,2})\s(janv|févr|mars|avr|mai|juin|juil|août|sept|oct|nov|déc)(?:\.?\s(\d{4}))?"
                 ),
                 "departure_date": re.compile(
-                    r"(?:Départ\r\n\r\n)(\w{3})\.\s(\d{1,2})\s(janv|févr|mars|avr|mai|juin|juil|août|sept|oct|nov|déc)(?:\.\s(\d{4}))?"
+                    r"(?:Départ\r\n\r\n)(\w{3})\.\s(\d{1,2})\s(janv|févr|mars|avr|mai|juin|juil|août|sept|oct|nov|déc)(?:\.?\s(\d{4}))?"
                 ),
                 "number_of_guests": re.compile(
                     r"(?:Voyageurs)\r\n\r\n(\d{1,2})\s(?:adultes|adulte)(?:,\s(\d{1,2}))?"
@@ -377,10 +377,10 @@ class Parser:
         elif language == "en":
             return {
                 "arrival_date": re.compile(
-                    r"(?:Check-in\r\n\r\n)(\w{3}),\s(\d{1,2})\s(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?:\s(\d{4}))?"
+                    r"(?:Check-in\r\n\r\n)(\w{3}),\s(\d{1,2})\s(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?:\.?\s(\d{4}))?"
                 ),
                 "departure_date": re.compile(
-                    r"(?:Checkout\r\n\r\n)(\w{3}),\s(\d{1,2})\s(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?:\s(\d{4}))?"
+                    r"(?:Checkout\r\n\r\n)(\w{3}),\s(\d{1,2})\s(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?:\.?\s(\d{4}))?"
                 ),
                 "number_of_guests": re.compile(
                     r"(?:Guests)\r\n\r\n(\d{1,2})\s(?:adults|adult)(?:,\s(\d{1,2}))?"
