@@ -290,8 +290,7 @@ class Parser:
             cleaned = cleaned.replace(",", ".")
             return cleaned
         elif cleaned.count(",") == 1:
-            first_idx = cleaned.find(",")
-            return cleaned[:first_idx] + cleaned[first_idx + 1 :]
+            return cleaned.replace(",", ".")
         return cleaned
 
     def parse_guest_payout(self, match: Optional[Match], data: Dict[str, Any]) -> None:
@@ -370,7 +369,7 @@ class Parser:
                 ),
                 "tourist_tax": re.compile(r"Taxes de séjour\s*\r?\n\s*([\d,\.]+)\s€"),
                 "host_payout": re.compile(
-                    r"(?:gagnez)?\r\n([\d\.,\u202f]+)\s€(?:\r\n\r\n)(?:L'argent)?"
+                    r"(?:gagnez|EUR\))\r\n([\d\.,\u202f]+)\s€(?:\r\n\r\n)(?:Votre|L'argent)"
                 ),
                 "guest_payout": re.compile(
                     r"(?<=Total\s\(EUR\)\r\n)([\d\.,\u202f]+)(?=\s?\€\r\nVersement)"
