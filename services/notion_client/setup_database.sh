@@ -46,10 +46,11 @@ curl -X PATCH "https://api.notion.com/v1/databases/${DATABASE_ID}" \
           "Insert Date": { "rich_text": {} },
           "Arrival DayOfWeek": { "rich_text": {} },
           "Departure DayOfWeek": { "rich_text": {} },
-          "Host Service Tax": { "number": {} },
+          "Host Service Tax": { "rich_text": {} },
           "Price by night": { "number": {} },
           "Guest Payout": { "number": {} },
           "Mail Date": { "date": {} },
+          "Rating": { "number": {} },
           "Name": { "title": {} }
         }
       }'
