@@ -1,4 +1,3 @@
-from .parser import Parser
 from rich import print
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -6,6 +5,8 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from services.google_integration.calendar_services import CalendarService
 from services.google_integration.gmail_services import GmailService
 from services.notion_client.notion_api_client import NotionClient
+
+from .parser import Parser
 
 
 class MailProcessorService:
@@ -41,7 +42,7 @@ class MailProcessorService:
         # fmt: on
 
         for email in reserved_emails:
-            parser = Parser(email)
+            parser = Parser(email, debug=self.debug)
             parsed_data = parser.parse_data()
 
             arr_day = parsed_data.get("arrival_day", "")
@@ -72,22 +73,11 @@ class MailProcessorService:
             parsed_results.append(parsed_data)
 
             if self.debug:
-                # print("\nParsed Reservation Data:")
-                # print("-" * 30)
-                # for key, value in parsed_data.items():
-                #     if value != "N/A":
-                #         print(f"{key}: {value}")
-                #     else:
-                #         print(f"\033[91m{key}: No data found.\033[0m")
-                # print("-" * 30)
                 print(parsed_data.get("name", "No name found."))
                 for key, value in parsed_data.items():
-                    if (
-                        value == "N/A" and key != "city" and key != "host_service_tax"
-                    ):  # Some users doesn't have city in their Airbnb profile
+                    if value == "N/A" and key != "city" and key != "host_service_tax":
                         print(f"[bold red]{key}: No data found.[/bold red]")
 
-        # Call the quality check method on all parsed reservations
         self.quality_check(parsed_results)
         return parsed_results
 
@@ -228,7 +218,9 @@ class MailProcessorService:
                 description="[bold magenta]Marking reserved mails as read...[/bold magenta]",
                 total=None,
             )
-            self.gmail_service.mark_mails_as_read_for_label(label="reserved")
+            self.gmail_service.mark_mails_as_read_for_label(
+                label="reserved"
+            ) if not self.debug else None
             progress.update(step4, completed=True)
             print(
                 "[bold green]✓[/bold green] Step 4 completed: Reserved mails marked as read\n"
@@ -244,29 +236,11 @@ class MailProcessorService:
                 description="[bold magenta]Marking reserved mails as read...[/bold magenta]",
                 total=None,
             )
-            self.process_review_mails()
+            self.process_review_mails() if not self.debug else None
             progress.update(step5, completed=True)
             print(
                 "[bold green]✓[/bold green] Step 5 completed: Reserved mails marked as read\n"
             )
-
-        # with Progress(
-        #     SpinnerColumn(),
-        #     TextColumn("[progress.description]{task.description}"),
-        #     transient=True
-        # ) as progress:
-        #     print("[bold blue]Step 4: Saving reservations to CSV...[/bold blue]")
-        #     step4 = progress.add_task(description="[bold magenta]Saving reservations to CSV...[/bold magenta]", total=None)
-        #     if parsed_reservations:
-        #         import os
-        #         df = pd.DataFrame(parsed_reservations)
-        #         output_path = 'reservations.csv'
-        #         df.to_csv(output_path, index=False)
-        #         print(f"[bold green]✓[/bold green] Data saved to {os.path.abspath(output_path)}")
-        #     else:
-        #         print("[yellow]No reservations to save[/yellow]")
-        #     progress.update(step4, completed=True)
-        #     print("[bold green]✓[/bold green] Step 4 completed: Data saved\n")
 
         print("\n[bold green]Workflow completed successfully![/bold green]")
         print(f"[blue]Processed {len(parsed_reservations)} reservations.[/blue]")
