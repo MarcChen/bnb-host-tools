@@ -11,40 +11,34 @@ from services.notion_client.notion_api_client import NotionClient
 class MailProcessorService:
     def __init__(self, debug: bool = False) -> None:
         self.gmail_service = GmailService()
+        self.notion_client = NotionClient()
+        self.calendar_service = CalendarService()
         self.debug = debug
 
     def parse_reserved_mails(self) -> list:
         """Second step: Get reserved emails and parse them"""
-        reserved_emails = self.gmail_service.get_reserved_unread_emails_content()
+        reserved_emails = self.gmail_service.get_unread_emails_content_by_label(
+            label="reserved"
+        )
         print(f"Mail content : {reserved_emails}") if self.debug else None
         parsed_results = []
 
+        # fmt: off
         month_mapping = {
-            "jan": "01",
-            "janv": "01",
-            "fév": "02",
-            "févr": "02",
-            "feb": "02",
-            "mar": "03",
-            "mars": "03",
-            "avr": "04",
-            "apr": "04",
-            "mai": "05",
-            "may": "05",
-            "jun": "06",
-            "juin": "06",
-            "jul": "07",
-            "juil": "07",
-            "août": "08",
-            "aoû": "08",
-            "aug": "08",
-            "sep": "09",
-            "sept": "09",
+            "jan": "01", "janv": "01",
+            "fév": "02", "févr": "02", "feb": "02",
+            "mar": "03", "mars": "03",
+            "avr": "04", "apr": "04",
+            "mai": "05", "may": "05",
+            "jun": "06", "juin": "06",
+            "jul": "07", "juil": "07",
+            "août": "08", "aoû": "08", "aug": "08",
+            "sep": "09", "sept": "09",
             "oct": "10",
             "nov": "11",
-            "déc": "12",
-            "dec": "12",
+            "déc": "12", "dec": "12"
         }
+        # fmt: on
 
         for email in reserved_emails:
             parser = Parser(email)
@@ -93,13 +87,54 @@ class MailProcessorService:
                     ):  # Some users doesn't have city in their Airbnb profile
                         print(f"[bold red]{key}: No data found.[/bold red]")
 
-            seen_codes = set()
-            for reservation in parsed_results:
-                code = reservation.get("confirmation_code")
-                if code in seen_codes:
-                    raise ValueError(f"Duplicate reservation code found: {code}")
-                seen_codes.add(code)
+        # Call the quality check method on all parsed reservations
+        self.quality_check(parsed_results)
         return parsed_results
+
+    def quality_check(self, reservations: list) -> None:
+        """Performs quality checks on reservations:
+        - Ensures each reservation has a valid confirmation_code (exists and isn't 'N/A').
+        - Ensures each reservation has a valid host_payout (exists and isn't 'N/A').
+        - Checks for duplicate confirmation codes.
+        """
+        seen_codes = set()
+        for reservation in reservations:
+            code = reservation.get("confirmation_code")
+            host_payout = reservation.get("host_payout")
+
+            if not code or code == "N/A":
+                raise ValueError(
+                    "Invalid reservation: 'confirmation_code' is missing or 'N/A'."
+                )
+            if not host_payout or host_payout == "N/A":
+                raise ValueError(
+                    f"Invalid reservation with code {code}: 'host_payout' is missing or 'N/A'."
+                )
+            if code in seen_codes:
+                raise ValueError(f"Duplicate reservation code found: {code}")
+            seen_codes.add(code)
+
+    def process_review_mails(self) -> None:
+        """Process review emails"""
+        review_emails = self.gmail_service.get_unread_emails_content_by_label(
+            label="review"
+        )
+        try:
+            for mail_content in review_emails:
+                reservation_info = self.gmail_service.parse_reservation_header(
+                    mail_content
+                )
+                if reservation_info["type"] == "review":
+                    print(
+                        f"Full name {reservation_info['full_name']} and rating {reservation_info['rating']}"
+                    )
+                    self.notion_client.update_row_by_name(
+                        name=reservation_info["full_name"],
+                        rating=int(reservation_info["rating"]),
+                    )
+            self.gmail_service.mark_mails_as_read_for_label(label="review")
+        except Exception as error:
+            print(f"An error occurred while processing unread emails: {error}")
 
     def run_workflow(self) -> None:
         """Execute the complete workflow"""
@@ -133,6 +168,7 @@ class MailProcessorService:
                 total=None,
             )
             parsed_reservations = self.parse_reserved_mails()
+            print(f"parsed_reservations: {parsed_reservations}") if self.debug else None
             progress.update(step2, completed=True)
             print("[bold green]✓[/bold green] Step 2 completed: Emails parsed\n")
 
@@ -149,37 +185,34 @@ class MailProcessorService:
                 total=None,
             )
             if parsed_reservations:
-                notion_client = NotionClient()
-                calendar_service = CalendarService()
                 for reservation in parsed_reservations:
                     confirmation_code = reservation.get("confirmation_code")
-                    if not notion_client.row_exists_by_reservation_id(
+                    if not self.notion_client.row_exists_by_reservation_id(
                         confirmation_code
                     ):
                         # print(f"Reservation is {reservation}")
-                        notion_client.create_page(**reservation)
+                        self.notion_client.create_page(**reservation)
                         print(
                             f"[bold green]✓[/bold green] [bold cyan]Reservation {confirmation_code} saved to Notion[/bold cyan]\n"
                         )
                     else:
                         console.print(
-                            f"[bold yellow]Warning:[/bold yellow] A reservation with confirmation code '{confirmation_code}' already exists.\n",
+                            f"[bold yellow]Warning:[/bold yellow] A reservation with confirmation code '{confirmation_code}' already exists in Notion.\n",
                             style="yellow",
                         )
 
-                    if calendar_service.event_exists(confirmation_code):
+                    if self.calendar_service.event_exists(confirmation_code):
                         console.print(
-                            f"[bold yellow]Warning:[/bold yellow] An event with reservation code '{confirmation_code}' already exists.\n",
+                            f"[bold yellow]Warning:[/bold yellow] An event with reservation code '{confirmation_code}' already exists in Google Calendar.\n",
                             style="yellow",
                         )
                     else:
-                        calendar_service.create_event(**reservation)
+                        self.calendar_service.create_event(**reservation)
                         print(
                             f"[bold green]✓[/bold green] [bold cyan]Event created for reservation {confirmation_code}[/bold cyan]\n"
                         )
             else:
                 print("[yellow]No reservations to save[/yellow]")
-                return
             progress.update(step3, completed=True)
             print(
                 "[bold green]✓[/bold green] Step 3 completed: Data saved to Notion and events are created\n"
@@ -195,10 +228,26 @@ class MailProcessorService:
                 description="[bold magenta]Marking reserved mails as read...[/bold magenta]",
                 total=None,
             )
-            self.gmail_service.mark_reserved_mails_as_read()
+            self.gmail_service.mark_mails_as_read_for_label(label="reserved")
             progress.update(step4, completed=True)
             print(
                 "[bold green]✓[/bold green] Step 4 completed: Reserved mails marked as read\n"
+            )
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+        ) as progress:
+            print("[bold blue]Step 5: Marking reserved mails as read...[/bold blue]")
+            step5 = progress.add_task(
+                description="[bold magenta]Marking reserved mails as read...[/bold magenta]",
+                total=None,
+            )
+            self.process_review_mails()
+            progress.update(step5, completed=True)
+            print(
+                "[bold green]✓[/bold green] Step 5 completed: Reserved mails marked as read\n"
             )
 
         # with Progress(

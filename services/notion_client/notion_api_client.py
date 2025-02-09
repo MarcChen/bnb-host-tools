@@ -51,7 +51,10 @@ class NotionClient:
                 "Departure DayOfWeek",
                 lambda v: {"rich_text": [{"text": {"content": v}}]},
             ),
-            "host_service_tax": ("Host Service Tax", lambda v: {"number": v}),
+            "host_service_tax": (
+                "Host Service Tax",
+                lambda v: {"rich_text": [{"text": {"content": v}}]},
+            ),
             "guest_payout": ("Guest Payout", lambda v: {"number": v}),
             "mail_date": ("Mail Date", lambda v: {"date": {"start": v}}),
             "number_of_child": ("Number of child", lambda v: {"number": v}),
@@ -146,6 +149,30 @@ class NotionClient:
         results = query.get("results", [])
         return len(results) > 0
 
+    def update_row_by_name(self, name: str, rating: int) -> Dict[str, Any]:
+        """
+        Update a row by setting the 'Rating' property based on the provided rating.
+        Partial match is used for the provided name.
+        """
+        # Query page(s) matching the provided partial name in the 'Name' property
+        query = self.client.databases.query(
+            database_id=self.database_id,
+            filter={
+                "property": "Name",
+                "title": {"contains": name},
+            },
+        )
+        results = query.get("results", [])
+        if not results:
+            warnings.warn(f"No page found with name containing: {name}", UserWarning)
+            return {}
+        page_id = results[0]["id"]
+        update_properties = {"Rating": {"number": rating}}
+        updated_page = self.client.pages.update(
+            page_id=page_id, properties=update_properties
+        )
+        return updated_page
+
 
 if __name__ == "__main__":
     client = NotionClient()
@@ -184,11 +211,11 @@ if __name__ == "__main__":
     }
 
     # Test create_page
-    try:
-        new_page = client.create_page(**sample_data)
-        print("Created page:", new_page)
-    except Exception as e:
-        print("Error creating page:", e)
+    # try:
+    #     new_page = client.create_page(**sample_data)
+    #     print("Created page:", new_page)
+    # except Exception as e:
+    #     print("Error creating page:", e)
 
     # try:
     #     reservation_code = "HMFANA2QCA"
