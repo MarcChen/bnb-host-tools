@@ -19,3 +19,13 @@ This pull request includes several significant changes to the project, focusing 
 ### Miscellaneous:
 * [`services/mail_processing/__init__.py`](diffhunk://#diff-065145409c352805812a26bcd8495b7fa58f65f22fd0690a64df96841b68b3b5R1-R2): Added an empty `__init__.py` file to the `mail_processing` module.
 
+## [0.1.1] - 2025-02-09
+- Merged PR #2 by @MarcChen: Fix : run workflowissue
+This pull request includes changes to the `services/oauth_credentials/config_creds.py` file to refactor the token-saving functionality and add command-line interface support.
+
+Refactoring and CLI support:
+
+* Encapsulated the token-saving logic into a `save_tokens` function and added an argument for the save directory.
+* Added command-line interface support using `argparse` to allow users to specify the save directory for the tokens.
+* Updated the scope in the `token_response` dictionary to include `https://www.googleapis.com/auth/drive`.
+
