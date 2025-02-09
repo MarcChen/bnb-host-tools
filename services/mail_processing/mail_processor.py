@@ -1,4 +1,4 @@
-from mail_processing.parser import Parser
+from .parser import Parser
 from rich import print
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
