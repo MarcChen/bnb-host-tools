@@ -6,6 +6,9 @@ import streamlit as st
 from services.notion_client.notion_api_client import NotionClient
 from get_blocked_days import fetch_blocked_days_from_notion
 
+# Add wide layout configuration at the top:
+st.set_page_config(layout="wide")
+
 # ---------- CSV CACHING UTILS ----------
 def load_or_fetch(cache_path, fetch_func, *args, **kwargs):
     if os.path.exists(cache_path):
@@ -87,6 +90,23 @@ if "Arrival Date" in df.columns:
         selected_year = st.selectbox("Select Year", options=available_years)
         df_filtered = df[df["year"] == selected_year].copy()
         df_blocked_filterd = df_blocked[df_blocked["start_date"].dt.year == selected_year].copy()
+
+        # ----- Metrics Block -----
+        met_cols = st.columns(3)
+        with met_cols[0]:
+            total_host_payout = df_filtered["Host Payout"].sum() if "Host Payout" in df_filtered.columns else 0
+            st.metric(label="Total Host Payout", value=f"{total_host_payout:,.2f} €")
+        with met_cols[1]:
+            avg_price = df_filtered["Price by night"].mean() if "Price by night" in df_filtered.columns else 0
+            st.metric(label="Average Price by Night", value=f"{avg_price:,.2f} €")
+        with met_cols[2]:
+            if not df_blocked_filterd.empty:
+                monthly_blocked = df_blocked_filterd.groupby("month_year")["blocked_days"].sum()
+                avg_blocked = monthly_blocked.mean()
+            else:
+                avg_blocked = 0
+            st.metric(label="Avg Days Blocked/Month", value=f"{avg_blocked:.1f}")
+        # --------------------------
     else:
         st.error("No valid 'Arrival Date' data found.")
         df_filtered = df.copy()
@@ -95,91 +115,85 @@ else:
     df_filtered = df.copy()
 
 # -----------------------------
-# GRAPH 1: Average Payouts vs. Number of Nights
+# Dashboard Layout with Columns
 # -----------------------------
-st.subheader("Average Payouts vs. Number of Nights")
 
-# Make sure the necessary columns are available and numeric.
-for col in ["Number of Nights", "Host Payout", "Guest Payout"]:
-    if col not in df_filtered.columns:
-        st.error(f"Column '{col}' is missing from the data.")
-        st.stop()
+# First row: Graph 1 and Graph 2 side by side
+cols = st.columns(2)
+with cols[0]:
+    st.subheader("Average Payouts vs. Number of Nights")
+    # Make sure the necessary columns are available and numeric.
+    for col in ["Number of Nights", "Host Payout", "Guest Payout"]:
+        if col not in df_filtered.columns:
+            st.error(f"Column '{col}' is missing from the data.")
+            st.stop()
 
-# Group by Number of Nights and compute average payouts.
-grouped = (
-    df_filtered.groupby("Number of Nights")
-    .agg({"Host Payout": "mean", "Guest Payout": "mean"})
-    .reset_index()
-)
-
-# Reshape for a grouped bar chart.
-grouped_melted = grouped.melt(
-    id_vars="Number of Nights",
-    value_vars=["Host Payout", "Guest Payout"],
-    var_name="Payout Type",
-    value_name="Average Payout",
-)
-
-fig1 = px.bar(
-    grouped_melted,
-    x="Number of Nights",
-    y="Average Payout",
-    color="Payout Type",
-    barmode="group",
-    title="Average Payout vs. Number of Nights",
-)
-st.plotly_chart(fig1, use_container_width=True)
-
-# -----------------------------
-# GRAPH 2: Box Plot of Nightly Price Distribution by Month
-# -----------------------------
-if "Arrival Date" in df_filtered.columns and "Price by night" in df_filtered.columns:
-    df_filtered.loc[:, "month_year"] = (
-        df_filtered["Arrival Date"].dt.to_period("M").astype(str)
+    # Group by Number of Nights and compute average payouts.
+    grouped = (
+        df_filtered.groupby("Number of Nights")
+        .agg({"Host Payout": "mean", "Guest Payout": "mean"})
+        .reset_index()
     )
-    # Create a box plot showing the distribution of nightly prices for each month
-    fig2 = px.box(
-        df_filtered,
-        x="month_year",
-        y="Price by night",
-        title="Box Plot: Nightly Price Distribution by Month (Based on Arrival Date)",
-        labels={"month_year": "Month-Year", "Price by night": "Nightly Price"},
+
+    # Reshape for a grouped bar chart.
+    grouped_melted = grouped.melt(
+        id_vars="Number of Nights",
+        value_vars=["Host Payout", "Guest Payout"],
+        var_name="Payout Type",
+        value_name="Average Payout",
     )
-    st.plotly_chart(fig2, use_container_width=False)
-else:
-    st.error("Required columns for monthly price analysis are missing.")
 
-# -----------------------------
-# GRAPH 3: Box Plot of Days of Stay by Month
-# -----------------------------
-st.subheader("Distribution of Number of Nights by Month")
-
-if "Arrival Date" in df_filtered.columns and "Number of Nights" in df_filtered.columns:
-    # Extract month name
-    df_filtered.loc[:, "month"] = df_filtered["Arrival Date"].dt.strftime("%B")
-
-    fig3 = px.box(
-        df_filtered,
-        x="month",
-        y="Number of Nights",
-        title="Box Plot: Number of Nights by Month (Arrival Date)",
-        labels={"month": "Month", "Number of Nights": "Days of Stay"},
+    fig1 = px.bar(
+        grouped_melted,
+        x="Number of Nights",
+        y="Average Payout",
+        color="Payout Type",
+        barmode="group",
+        title="Average Payout vs. Number of Nights",
     )
-    st.plotly_chart(fig3, use_container_width=True)
-else:
-    st.error("Required columns for box plot analysis are missing.")
+    st.plotly_chart(fig1, use_container_width=True)
+with cols[1]:
+    if "Arrival Date" in df_filtered.columns and "Price by night" in df_filtered.columns:
+        st.subheader("Box Plot: Nightly Price Distribution by Month")
+        df_filtered.loc[:, "month_year"] = df_filtered["Arrival Date"].dt.to_period("M").astype(str)
+        fig2 = px.box(
+            df_filtered,
+            x="month_year",
+            y="Price by night",
+            title="Box Plot: Nightly Price Distribution by Month (Based on Arrival Date)",
+            labels={"month_year": "Month-Year", "Price by night": "Nightly Price"},
+        )
+        st.plotly_chart(fig2, use_container_width=True)
+    else:
+        st.error("Required columns for monthly price analysis are missing.")
 
-# New section: Blocked Days Visualization
-st.subheader("Blocked Days per Month")
-if not df_blocked_filterd.empty and "month_year" in df_blocked_filterd.columns:
-    df_blocked_grouped = df_blocked_filterd.groupby("month_year")["blocked_days"].sum().reset_index()
-    fig_blocked = px.bar(
-         df_blocked_grouped,
-         x="month_year",
-         y="blocked_days",
-         title="Total Blocked Days per Month",
-         labels={"month_year": "Month-Year", "blocked_days": "Total Blocked Days"},
-    )
-    st.plotly_chart(fig_blocked, use_container_width=True)
-else:
-    st.error("Blocked days data is unavailable.")
+# Second row: Graph 3 and Blocked Days Visualization side by side
+cols2 = st.columns(2)
+with cols2[0]:
+    st.subheader("Distribution of Number of Nights by Month")
+    if "Arrival Date" in df_filtered.columns and "Number of Nights" in df_filtered.columns:
+        df_filtered.loc[:, "month"] = df_filtered["Arrival Date"].dt.strftime("%B")
+        fig3 = px.box(
+            df_filtered,
+            x="month",
+            y="Number of Nights",
+            title="Box Plot: Number of Nights by Month (Arrival Date)",
+            labels={"month": "Month", "Number of Nights": "Days of Stay"},
+        )
+        st.plotly_chart(fig3, use_container_width=True)
+    else:
+        st.error("Required columns for box plot analysis are missing.")
+with cols2[1]:
+    st.subheader("Blocked Days per Month")
+    if not df_blocked_filterd.empty and "month_year" in df_blocked_filterd.columns:
+        df_blocked_grouped = df_blocked_filterd.groupby("month_year")["blocked_days"].sum().reset_index()
+        fig_blocked = px.bar(
+            df_blocked_grouped,
+            x="month_year",
+            y="blocked_days",
+            title="Total Blocked Days per Month",
+            labels={"month_year": "Month-Year", "blocked_days": "Total Blocked Days"},
+        )
+        st.plotly_chart(fig_blocked, use_container_width=True)
+    else:
+        st.error("Blocked days data is unavailable.")
