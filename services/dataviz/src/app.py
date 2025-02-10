@@ -1,7 +1,7 @@
 import os, time
 import pandas as pd
 import streamlit as st
-
+import plotly.express as px
 from services.dataviz.utils.data_fetch import fetch_data_from_notion, fetch_blocked_days_data
 import datetime
 from services.dataviz.utils.plotting import (
@@ -9,7 +9,8 @@ from services.dataviz.utils.plotting import (
     plot_avg_payout_vs_nights,
     plot_boxplot_nightly_price_by_month,
     plot_boxplot_nights_by_month,
-    plot_blocked_days
+    plot_blocked_days,
+    plot_stacked_month_days  # New import for the stacked bar chart
 )
 
 st.set_page_config(layout="wide")
@@ -38,27 +39,40 @@ if "Arrival Date" in df.columns:
         selected_year = st.sidebar.selectbox("Select Year", options=available_years, index=default_index)
         df_filtered = df[df["year"] == selected_year].copy()
         df_blocked_filterd = df_blocked[df_blocked["start_date"].dt.year == selected_year].copy()
-
+        
+        # New: Compute previous year data
+        df_previous = df[df["year"] == (selected_year - 1)].copy()
+        df_blocked_previous = df_blocked[df_blocked["start_date"].dt.year == (selected_year - 1)].copy()
+        
         met_cols = st.columns(4)
         with met_cols[0]:
-            total_host_payout = df_filtered["Host Payout"].sum() if "Host Payout" in df_filtered.columns else 0
-            st.metric(label="Total Host Payout", value=f"{total_host_payout:,.2f} €")
+            current_total = df_filtered["Host Payout"].sum() if "Host Payout" in df_filtered.columns else 0
+            prev_total = df_previous["Host Payout"].sum() if "Host Payout" in df_previous.columns and not df_previous.empty else 0
+            delta_total = f"{((current_total - prev_total) / prev_total * 100):+,.2f}%" if prev_total > 0 else "N/A"
+            st.metric(label="Total Host Payout", value=f"{current_total:,.2f} €", delta=delta_total)
         with met_cols[1]:
-            avg_price = df_filtered["Price by night"].mean() if "Price by night" in df_filtered.columns else 0
-            st.metric(label="Average Price by Night", value=f"{avg_price:,.2f} €")
+            current_price = df_filtered["Price by night"].mean() if "Price by night" in df_filtered.columns else 0
+            prev_price = df_previous["Price by night"].mean() if "Price by night" in df_previous.columns and not df_previous.empty else 0
+            delta_price = f"{((current_price - prev_price) / prev_price * 100):+,.2f}%" if prev_price > 0 else "N/A"
+            st.metric(label="Average Price by Night", value=f"{current_price:,.2f} €", delta=delta_price)
         with met_cols[2]:
             if not df_blocked_filterd.empty:
                 monthly_blocked = df_blocked_filterd.groupby("month_year")["blocked_days"].sum()
-                avg_blocked = monthly_blocked.mean()
+                current_avg = monthly_blocked.mean()
             else:
-                avg_blocked = 0
-            st.metric(label="Avg Days Blocked/Month", value=f"{avg_blocked:.1f}")
+                current_avg = 0
+            if not df_blocked_previous.empty:
+                prev_monthly = df_blocked_previous.groupby("month_year")["blocked_days"].sum()
+                prev_avg = prev_monthly.mean()
+            else:
+                prev_avg = 0
+            delta_blocked = f"{((current_avg - prev_avg) / prev_avg * 100):+,.2f}%" if prev_avg > 0 else "N/A"
+            st.metric(label="Avg Days Blocked/Month", value=f"{current_avg:.1f}", delta=delta_blocked)
         with met_cols[3]:
-            if "Country" in df_filtered.columns:
-                num_countries = df_filtered["Country"].nunique()
-            else:
-                num_countries = 0
-            st.metric(label="Number of Countries", value=num_countries)
+            current_countries = df_filtered["Country"].nunique() if "Country" in df_filtered.columns else 0
+            prev_countries = df_previous["Country"].nunique() if "Country" in df_previous.columns and not df_previous.empty else 0
+            delta_countries = f"{((current_countries - prev_countries) / prev_countries * 100):+,.0f}%" if prev_countries > 0 else "N/A"
+            st.metric(label="Number of Countries", value=current_countries, delta=delta_countries)
     else:
         st.error("No valid 'Arrival Date' data found.")
         df_filtered = df.copy()
@@ -105,7 +119,24 @@ with cols2[1]:
     else:
         st.error("Blocked days data is unavailable.")
 
-# Third row: Host Payout World Map
+# Third row: New Box Plot of Price by Night by Rating
+st.subheader("Box Plot: Price by Night by Rating")
+if "Rating" not in df_filtered.columns:
+    st.error("Column 'Rating' is missing from the data.")
+else:
+    from services.dataviz.utils.plotting import plot_boxplot_price_by_nights
+    fig_rating = plot_boxplot_price_by_nights(df_filtered, "Rating")
+    st.plotly_chart(fig_rating, use_container_width=True)
+
+# New: Stacked Bar Chart for Monthly Days Breakdown
+st.subheader("Stacked Bar Chart: Days in Month Breakdown")
+if "Arrival Date" in df.columns and "Number of Nights" in df.columns and not df_blocked.empty:
+    fig_stacked = plot_stacked_month_days(df_filtered, df_blocked_filterd)
+    st.plotly_chart(fig_stacked, use_container_width=True)
+else:
+    st.error("Insufficient data for monthly days breakdown.")
+
+# Host Payout World Map (existing)
 st.subheader("Host Payout by Country")
 fig_world = plot_host_payout_world_map(df_filtered)
 st.plotly_chart(fig_world, use_container_width=True)

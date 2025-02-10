@@ -1,4 +1,6 @@
 import plotly.express as px
+import calendar
+import pandas as pd
 
 def plot_host_payout_world_map(df):
     grouped = df.groupby("Country", as_index=False)["Host Payout"].sum()
@@ -86,4 +88,50 @@ def plot_blocked_days(df_blocked_filtered):
         title="Total Blocked Days per Month",
         labels={"month_year": "Month-Year", "blocked_days": "Total Blocked Days"},
     )
+    return fig
+
+def plot_boxplot_price_by_nights(df, category):
+    """
+    Create a box plot of 'Price by night' grouped by a specified category.
+    """
+    fig = px.box(
+        df,
+        x=category,
+        y="Price by night",
+        title=f"Box Plot: Price by Night by {category}"
+    )
+    # Add grid lines to the y-axis for enhanced readability.
+    fig.update_yaxes(
+        showgrid=True,
+        gridcolor='lightgray',
+        gridwidth=1,
+        autorange=True
+    )
+    return fig
+
+def plot_stacked_month_days(df, df_blocked):
+    # Ensure month_year exists in bookings data
+    if "month_year" not in df.columns and "Arrival Date" in df.columns:
+        df["month_year"] = df["Arrival Date"].dt.to_period("M").astype(str)
+    # Aggregate booked days per month from "Number of Nights"
+    booked = df.groupby("month_year")["Number of Nights"].sum().rename("Booked Days")
+    # Aggregate blocked days per month
+    blocked = df_blocked.groupby("month_year")["blocked_days"].sum().rename("Blocked Days")
+    # Combine and compute total days per month using calendar.monthrange
+    all_months = pd.concat([booked, blocked], axis=1).fillna(0)
+    
+    total_days = {}
+    for month_str in all_months.index:
+        year, month = map(int, month_str.split("-"))
+        total_days[month_str] = calendar.monthrange(year, month)[1]
+    all_months["Total Days"] = pd.Series(total_days)
+    # Compute Available Days ensuring non-negative values
+    all_months["Available Days"] = (all_months["Total Days"] - all_months["Booked Days"] - all_months["Blocked Days"]).clip(lower=0)
+    all_months = all_months.reset_index().rename(columns={"month_year": "Month"})
+    # Prepare data for stacked bar chart
+    data = all_months.melt(id_vars="Month", value_vars=["Booked Days", "Blocked Days", "Available Days"],
+                           var_name="Type", value_name="Days")
+    fig = px.bar(data, x="Month", y="Days", color="Type", title="Monthly Days Breakdown",
+                 barmode="stack")
+    fig.update_layout(margin={'l': 10, 'r': 10, 't': 30, 'b': 10}, height=500)
     return fig
