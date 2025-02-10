@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 
 from services.dataviz.utils.data_fetch import fetch_data_from_notion, fetch_blocked_days_data
+import datetime
 from services.dataviz.utils.plotting import (
     plot_host_payout_world_map,
     plot_avg_payout_vs_nights,
@@ -32,7 +33,9 @@ if "Arrival Date" in df.columns:
     df["year"] = df["Arrival Date"].dt.year
     available_years = sorted(df["year"].dropna().unique())
     if available_years:
-        selected_year = st.selectbox("Select Year", options=available_years)
+        current_year = datetime.datetime.now().year
+        default_index = available_years.index(current_year) if current_year in available_years else 0
+        selected_year = st.sidebar.selectbox("Select Year", options=available_years, index=default_index)
         df_filtered = df[df["year"] == selected_year].copy()
         df_blocked_filterd = df_blocked[df_blocked["start_date"].dt.year == selected_year].copy()
 
