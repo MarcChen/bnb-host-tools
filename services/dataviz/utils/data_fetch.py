@@ -3,6 +3,17 @@ import pandas as pd
 from services.notion_client.notion_api_client import NotionClient
 from get_blocked_days import fetch_blocked_days_from_notion
 from .cache import load_or_fetch
+import pycountry
+
+def convert_country_code(code):
+    if not isinstance(code, str):
+        return code
+    # If it's a two-letter country code, try converting it
+    if len(code) == 2:
+        country = pycountry.countries.get(alpha_2=code.upper())
+        if country:
+            return country.name
+    return code
 
 def get_notion_data():
     notion_client = NotionClient()
@@ -19,6 +30,8 @@ def get_notion_data():
     ]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
+    if "Country" in df.columns:
+        df["Country"] = df["Country"].apply(convert_country_code)
     return df
 
 def fetch_data_from_notion():
