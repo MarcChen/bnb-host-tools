@@ -100,3 +100,19 @@ Improvements to numeric string cleaning and formatting:
 
 * [`services/mail_processing/parser.py`](diffhunk://#diff-c08f5a1148c23251f9e5c8ac593a309758f3f8427c1119499d05f5f3c3a38949L282-L294): The `fix_payout_value` method has been updated to remove thousands separators, ensure a single decimal point, and strip any non-digit or punctuation characters except for '.' and ','. This change improves the accuracy and reliability of the numeric string cleaning process.
 
+## [0.3.0] - 2025-02-10
+- Merged PR #6 by @MarcChen: Feature : adding blocked days data retrieval from ics calendar
+This pull request introduces a new feature to fetch blocked days from an Airbnb iCal URL and push them to a Notion database. It includes changes to the workflow configuration, the addition of a new script, and corresponding unit tests.
+
+### Workflow Configuration:
+
+* [`.github/workflows/run.yml`](diffhunk://#diff-a3ddd7238fc6e36daeb0ef76e93fe15cc87824bd3299888075210c5ca6a474d3L90-R90): Updated the dependency installation command to include the `streamlit_app` and added a new job to retrieve blocked days from the iCal calendar and push them to Notion. [[1]](diffhunk://#diff-a3ddd7238fc6e36daeb0ef76e93fe15cc87824bd3299888075210c5ca6a474d3L90-R90) [[2]](diffhunk://#diff-a3ddd7238fc6e36daeb0ef76e93fe15cc87824bd3299888075210c5ca6a474d3R114-R123)
+
+### New Script:
+
+* [`services/dataviz/src/get_blocked_days.py`](diffhunk://#diff-83d8c18ec021f089538fad23466845c703830e9ab32d71a1fd358ef2d3bcbc8aR1-R123): Added a new script to fetch blocked days from an Airbnb iCal URL and push them to a Notion database. This script includes functions to fetch blocked days, push them to Notion, and retrieve blocked days from Notion.
+
+### Unit Tests:
+
+* [`tests/unit/test_get_blocked_days.py`](diffhunk://#diff-21cf15e7e9321281ba643b9700bd643cbcc4fa2867332882e42498a39d3be8a7R1-R70): Added unit tests for the new script, including dummy classes and functions to simulate calendar events and responses.
+
