@@ -11,6 +11,19 @@ def plot_host_payout_world_map(df):
         color_continuous_scale=px.colors.sequential.Plasma,
         title="Host Payout by Country"
     )
+    fig.update_layout(
+        autosize=True,
+        margin={'l': 10, 'r': 10, 't': 30, 'b': 10},
+        height=800
+    )
+    # Update geos to zoom, show all borders and land.
+    fig.update_geos(
+        visible=True,
+        showcountries=True,
+        countrycolor="black",
+        showland=True,
+        landcolor="lightgray"
+    )
     return fig
 
 def plot_avg_payout_vs_nights(df):
@@ -74,5 +87,3 @@ def plot_blocked_days(df_blocked_filtered):
         labels={"month_year": "Month-Year", "blocked_days": "Total Blocked Days"},
     )
     return fig
-
-# ...existing code if any...

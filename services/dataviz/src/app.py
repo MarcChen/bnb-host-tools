@@ -36,7 +36,7 @@ if "Arrival Date" in df.columns:
         df_filtered = df[df["year"] == selected_year].copy()
         df_blocked_filterd = df_blocked[df_blocked["start_date"].dt.year == selected_year].copy()
 
-        met_cols = st.columns(3)
+        met_cols = st.columns(4)
         with met_cols[0]:
             total_host_payout = df_filtered["Host Payout"].sum() if "Host Payout" in df_filtered.columns else 0
             st.metric(label="Total Host Payout", value=f"{total_host_payout:,.2f} €")
@@ -50,6 +50,12 @@ if "Arrival Date" in df.columns:
             else:
                 avg_blocked = 0
             st.metric(label="Avg Days Blocked/Month", value=f"{avg_blocked:.1f}")
+        with met_cols[3]:
+            if "Country" in df_filtered.columns:
+                num_countries = df_filtered["Country"].nunique()
+            else:
+                num_countries = 0
+            st.metric(label="Number of Countries", value=num_countries)
     else:
         st.error("No valid 'Arrival Date' data found.")
         df_filtered = df.copy()
