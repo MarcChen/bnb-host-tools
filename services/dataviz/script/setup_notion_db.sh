@@ -30,6 +30,7 @@ create_db_response=$(curl -s -X POST "https://api.notion.com/v1/databases" \
             "Name": { "title": {} },
             "Start Date": { "date": {} },
             "End Date": { "date": {} },
+            "Duration": { "number": {} },
             "Insert Date": { "date": {} }
         }
     }')
