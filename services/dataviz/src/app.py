@@ -35,7 +35,11 @@ def get_notion_data():
 
 def fetch_data_from_notion():
     cache_path = os.getenv("PROJECT_ROOT") + "/services/dataviz/data/df_notion_cache.csv"
-    return load_or_fetch(cache_path, get_notion_data)
+    df = load_or_fetch(cache_path, get_notion_data)
+    for col in ["Arrival Date", "Departure Date", "Mail Date", "Insert Date"]:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce")
+    return df
 
 # ---------- BLOCKED DAYS DATA FETCHING ----------
 def get_blocked_days_data():
@@ -48,7 +52,11 @@ def get_blocked_days_data():
 
 def fetch_blocked_days_data():
     cache_path = os.getenv("PROJECT_ROOT") + "/services/dataviz/data/df_blocked_days_cache.csv"
-    return load_or_fetch(cache_path, get_blocked_days_data)
+    df = load_or_fetch(cache_path, get_blocked_days_data)
+    for col in ["start_date", "end_date"]:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce")
+    return df
 
 # Button to refresh data manually: clears CSV cache by deleting files (optional)
 if st.button("Refresh Data"):
@@ -62,7 +70,7 @@ if st.button("Refresh Data"):
 
 # Fetch (or load cached) data
 df = fetch_data_from_notion()
-
+df_blocked = fetch_blocked_days_data()
 # -----------------------------
 # GLOBAL FILTERS
 # -----------------------------
@@ -78,6 +86,7 @@ if "Arrival Date" in df.columns:
     if available_years:
         selected_year = st.selectbox("Select Year", options=available_years)
         df_filtered = df[df["year"] == selected_year].copy()
+        df_blocked_filterd = df_blocked[df_blocked["start_date"].dt.year == selected_year].copy()
     else:
         st.error("No valid 'Arrival Date' data found.")
         df_filtered = df.copy()
@@ -162,9 +171,8 @@ else:
 
 # New section: Blocked Days Visualization
 st.subheader("Blocked Days per Month")
-df_blocked = fetch_blocked_days_data()
-if not df_blocked.empty and "month_year" in df_blocked.columns:
-    df_blocked_grouped = df_blocked.groupby("month_year")["blocked_days"].sum().reset_index()
+if not df_blocked_filterd.empty and "month_year" in df_blocked_filterd.columns:
+    df_blocked_grouped = df_blocked_filterd.groupby("month_year")["blocked_days"].sum().reset_index()
     fig_blocked = px.bar(
          df_blocked_grouped,
          x="month_year",
