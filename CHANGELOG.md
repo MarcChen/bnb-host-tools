@@ -116,3 +116,18 @@ This pull request introduces a new feature to fetch blocked days from an Airbnb 
 
 * [`tests/unit/test_get_blocked_days.py`](diffhunk://#diff-21cf15e7e9321281ba643b9700bd643cbcc4fa2867332882e42498a39d3be8a7R1-R70): Added unit tests for the new script, including dummy classes and functions to simulate calendar events and responses.
 
+## [0.3.1] - 2025-02-10
+- Merged PR #7 by @MarcChen: Fix : fixed mail date retrieval
+This pull request includes updates to data files and significant changes to the `parser.py` script in the `mail_processing` service. The changes involve adding new data entries and refactoring the initialization and date parsing logic in the parser.
+
+### Data Updates:
+* [`services/dataviz/data/df_blocked_days_cache.csv`](diffhunk://#diff-7e8c2a9a32c0f1b8365d445f789745135bce176a08fa8af6753c59d9462edec1R1-R15): Added new entries for blocked days, including details such as start and end dates, name, insert date, duration, blocked days, and month year.
+* [`services/dataviz/data/df_notion_cache.csv`](diffhunk://#diff-539c58dee3675e49504f36d128896b82d5bbdfd6f913027facd60817d98f901eR1-R64): Added new entries for bookings, including details such as arrival and departure dates, fees, total cost, number of guests, and other booking information.
+
+### Codebase Changes:
+* `services/mail_processing/parser.py`: 
+  * Removed unused imports (`csv`, `os`) to clean up the code.
+  * Refactored `__init__` method to use a new `parse_mail_date` method for extracting the mail date from the 'Snippet' field, with a fallback to the 'Date' field. Added debug print statement for mail date. [[1]](diffhunk://#diff-c08f5a1148c23251f9e5c8ac593a309758f3f8427c1119499d05f5f3c3a38949L22-R22) [[2]](diffhunk://#diff-c08f5a1148c23251f9e5c8ac593a309758f3f8427c1119499d05f5f3c3a38949R35)
+  * Added `parse_mail_date` method to extract the mail date from the 'Snippet' field to handle cases where the 'Date' field has a lag or incorrect year.
+  * Removed the `append_booking_data_to_csv` and `confirmation_code_exists_in_csv` methods, simplifying the codebase by eliminating unused functions.
+
