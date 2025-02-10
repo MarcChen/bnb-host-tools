@@ -87,7 +87,7 @@ jobs:
       - name: Install Dependencies
         shell: bash
         run: |
-          poetry install --without dev
+          poetry install --without dev --with streamlit_app
         working-directory: ${{ github.workspace }}
 
       - name: Generate Google API Token
@@ -111,3 +111,13 @@ jobs:
           NOTION_API: ${{ secrets.NOTION_API }}
           DATABASE_ID: ${{ secrets.DATABASE_ID }}
           PROJECT_ROOT: ${{ github.workspace }}
+
+      - name: Retrieve blocked days from ics Calendar
+        shell: bash
+        run: |
+          poetry run python services/dataviz/src/get_blocked_days.py
+        working-directory: ${{ github.workspace }}
+        env:
+          NOTION_API: ${{ secrets.NOTION_API }}
+          DATE_DATABASE_ID: ${{ secrets.DATE_DATABASE_ID }}
+          CALENDAR_URL: ${{ secrets.CALENDAR_URL }}
