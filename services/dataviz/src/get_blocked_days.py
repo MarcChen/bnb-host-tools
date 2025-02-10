@@ -118,6 +118,6 @@ if __name__ == "__main__":
     try:
         calendar_url = os.environ.get("CALENDAR_URL")
         push_blocked_days_to_notion(calendar_url)
-        print(f"Successfully pushed blocked days from calendar to Notion")
+        print("Successfully pushed blocked days from calendar to Notion")
     except Exception as e:
         print(f"Failed to push blocked days to Notion: {e}")
