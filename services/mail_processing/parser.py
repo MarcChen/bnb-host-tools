@@ -1,5 +1,3 @@
-import csv
-import os
 import re
 import warnings
 from typing import Any, Dict, Match, Optional, Pattern
@@ -19,11 +17,9 @@ class Parser:
         """
         self.debug = debug
         self.person_name: str = "N/A"
-        self.mail_date: str = "N/A"
-
-        # If a dict is provided, extract relevant fields (mail_date, person_name, message_body).
         if isinstance(mail, dict):
-            self.mail_date = mail.get("Date", "N/A")
+            self.mail_date = self.parse_mail_date(mail)
+            print(f"Mail date: {self.mail_date}") if self.debug else None
             self.message_body: str = mail.get("Message_body", "")
             subject = mail.get("Subject", "")
             # Attempt to extract person's name from subject
@@ -36,6 +32,7 @@ class Parser:
             if match:
                 self.person_name = match.group(2).strip() or "N/A"
         else:
+            self.mail_date = "N/A"
             self.message_body: str = mail or ""
 
         self.language: str = self.detect_language()
@@ -325,6 +322,39 @@ class Parser:
         else:
             data.update({"country": "N/A", "city": "N/A"})
 
+    def parse_mail_date(self, mail: dict) -> str:
+        """
+        Extracts the mail date from the 'Snippet' field if present. Because the 'Date' field as a small lag in time (UTC+1) and one booking was input on the wrong year,
+        the 'Snippet' field is used to get the correct date.
+        """
+        snippet = mail.get("Snippet", "")
+        if snippet:
+            date_match = re.search(
+                r"Envoyé\s*:\s*[\wé]+ (\d{1,2}) (\w+) (\d{4}) (?:\d{2}:\d{2}:\d{2})",
+                snippet,
+            )
+            if date_match:
+                date = date_match.group(1)
+                month = date_match.group(2)
+                month_mapping = {
+                    "janvier": "01",
+                    "février": "02",
+                    "mars": "03",
+                    "avril": "04",
+                    "mai": "05",
+                    "juin": "06",
+                    "juillet": "07",
+                    "août": "08",
+                    "septembre": "09",
+                    "octobre": "10",
+                    "novembre": "11",
+                    "décembre": "12",
+                }
+                month = month_mapping.get(month.lower(), month)
+                year = date_match.group(3)
+                return f"{year}-{month.zfill(2)}-{date.zfill(2)}"
+        return mail.get("Date", "N/A")
+
     def get_language_patterns(self, language: str) -> Dict[str, Pattern]:
         """
         Returns a dictionary of compiled regex patterns based on the language.
@@ -416,81 +446,3 @@ class Parser:
             }
         else:
             return {}
-
-
-def append_booking_data_to_csv(filename: str, data: Dict[str, Any]) -> None:
-    """
-    Appends booking data to a CSV file if the confirmation code is not already present.
-
-    Args:
-        filename (str): The path to the CSV file.
-        data (Dict[str, Any]): A dictionary containing booking details, including a confirmation code.
-    """
-    confirmation_code = data.get("confirmation_code")
-    if not confirmation_code or confirmation_code == "N/A":
-        print("No valid confirmation code found in the data.")
-        raise ValueError("No valid confirmation code found in the data.")
-
-    # Check if code already exists
-    if confirmation_code_exists_in_csv(filename, confirmation_code):
-        print(
-            f"Confirmation code {confirmation_code} already exists. Data will not be appended."
-        )
-        return
-
-    with open(filename, "a", encoding="utf-8", newline="") as csvfile:
-        fieldnames = [
-            "mail_date",
-            "arrival_day_of_week",
-            "arrival_day",
-            "arrival_month",
-            "arrival_year",
-            "departure_day_of_week",
-            "departure_day",
-            "departure_month",
-            "departure_year",
-            "confirmation_code",
-            "price_by_night",
-            "number_of_nights",
-            "total_nights_cost",
-            "cleaning_fee",
-            "guest_service_fee",
-            "host_service_fee",
-            "host_service_tax",
-            "tourist_tax",
-            "guest_payout",
-            "host_payout",
-            "number_of_adults",
-            "number_of_children",
-            "country",
-            "city",
-            "name",
-            "subject",
-        ]
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=",")
-        if os.stat(filename).st_size == 0:
-            writer.writeheader()
-
-        writer.writerow(data)
-        print(
-            f"Data with confirmation code {confirmation_code} has been appended to {filename}."
-        )
-
-
-def confirmation_code_exists_in_csv(filename: str, confirmation_code: str) -> bool:
-    """
-    Checks if a given confirmation code already exists in a CSV file.
-
-    Args:
-        filename (str): The path to the CSV file.
-        confirmation_code (str): The confirmation code to search for.
-
-    Returns:
-        bool: True if the confirmation code is found, False otherwise.
-    """
-    if not os.path.exists(filename):
-        return False
-
-    with open(filename, "r", encoding="utf-8") as csvfile:
-        reader = csv.DictReader(csvfile)
-        return any(row.get("confirmation_code") == confirmation_code for row in reader)
