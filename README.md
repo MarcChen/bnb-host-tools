@@ -1,6 +1,10 @@
 # 🏠 BNB Booking Tools: Gmail & Calendar Automation  
 *Sync Airbnb guest data, automate cleaning calendars, and track repeat customers.*  
 
+<p align="center">
+  <img src="./demo.gif" alt="Project Demo GIF" width="600">
+</p>
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)  
 
 ---
