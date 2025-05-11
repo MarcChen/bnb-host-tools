@@ -2,6 +2,7 @@
 import datetime
 import os
 import warnings
+from rich import print
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -102,37 +103,108 @@ class CalendarService:
         except HttpError as error:
             print(f"An error occurred: {error}")
 
-    def retrieve_events(self, future=True):
-        # Retrieve events: if future is True, list events from now onwards; otherwise, past events.
-        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    def _retrieve_past_day_events(self, reference_date):
+        """Retrieve events from the past day relative to a reference date.
+        
+        Args:
+            reference_date: The reference datetime to measure from
+        
+        Returns:
+            List of past events ordered by startTime (earliest first)
+            
+        Raises:
+            ValueError: If more than 2 events are found in the given time range
+        """
+        past_date = reference_date - datetime.timedelta(days=1)
+        past_date_iso = past_date.isoformat()
+        reference_date_iso = reference_date.isoformat()
+        
         try:
-            if future:
-                events_result = (
-                    self.service.events()
-                    .list(
-                        calendarId=self.calendar_id,
-                        timeMin=now,
-                        singleEvents=True,
-                        orderBy="startTime",
-                    )
-                    .execute()
+            past_events_result = (
+                self.service.events()
+                .list(
+                    calendarId=self.calendar_id,
+                    timeMax=reference_date_iso,
+                    timeMin=past_date_iso,
+                    singleEvents=True,
+                    orderBy="startTime",
                 )
-            else:
-                events_result = (
-                    self.service.events()
-                    .list(
-                        calendarId=self.calendar_id,
-                        timeMax=now,
-                        singleEvents=True,
-                        orderBy="startTime",
-                    )
-                    .execute()
-                )
-            events = events_result.get("items", [])
+                .execute()
+            )
+            events = past_events_result.get("items", [])
+            if len(events) > 2:
+                raise ValueError(f"Too many events found in past day: {len(events)}. Maximum allowed is 2.")
             return events
         except HttpError as error:
-            print(f"An error occurred: {error}")
+            print(f"An error occurred retrieving past events: {error}")
             return []
+    
+    def _retrieve_future_day_events(self, reference_date):
+        """Retrieve events for the next day relative to a reference date.
+        
+        Args:
+            reference_date: The reference datetime to measure from
+        
+        Returns:
+            List of future events ordered by startTime (earliest first)
+            
+        Raises:
+            ValueError: If more than 2 events are found in the given time range
+        """
+        future_date = reference_date + datetime.timedelta(days=1)
+        future_date_iso = future_date.isoformat()
+        reference_date_iso = reference_date.isoformat()
+        
+        try:
+            future_events_result = (
+                self.service.events()
+                .list(
+                    calendarId=self.calendar_id,
+                    timeMax=future_date_iso,
+                    timeMin=reference_date_iso,
+                    singleEvents=True,
+                    orderBy="startTime",
+                )
+                .execute()
+            )
+            events = future_events_result.get("items", [])
+            if len(events) > 2:
+                raise ValueError(f"Too many events found in future day: {len(events)}. Maximum allowed is 2.")
+            return events
+        except HttpError as error:
+            print(f"An error occurred retrieving future events: {error}")
+            return []
+
+    def _retrieve_events_by_proximity(self, reference_date=None):
+        """Retrieve events sorted by proximity to a reference date.
+        Returns closest past events (within one day) followed by closest future events (within one day).
+        
+        Args:
+            reference_date: The reference date to measure proximity against.
+                           Can be a datetime object or an ISO format string.
+                           If None, current time is used.
+        
+        Returns:
+            List of events sorted by proximity to the reference date.
+            
+        Raises:
+            ValueError: If more than 2 events are found in either past or future time range
+        """
+        # Process reference date
+        if reference_date is None:
+            reference_date = datetime.datetime.now(datetime.timezone.utc)
+        elif isinstance(reference_date, str):
+            try:
+                reference_date = datetime.datetime.fromisoformat(reference_date.replace('Z', '+00:00'))
+                if reference_date.tzinfo is None:
+                    reference_date = reference_date.replace(tzinfo=datetime.timezone.utc)
+            except ValueError:
+                raise ValueError("Invalid date format. Please use ISO format (YYYY-MM-DDTHH:MM:SS+00:00)")
+        
+        past_events = self._retrieve_past_day_events(reference_date)
+        future_events = self._retrieve_future_day_events(reference_date)
+        
+        return past_events + future_events
 
     def delete_event(self, reservation_code):
         # Delete events by filtering events with the given reservation code in their summary.
@@ -222,5 +294,47 @@ if __name__ == "__main__":
     # print(f"Event with reservation code 'HM43WHMJXZ' exists:", exists)
 
     # Delete all events
+    # svc = CalendarService()
+    # svc.delete_all_reservation_events()
+
+
+    # Test the new _retrieve_events_by_proximity function
     svc = CalendarService()
-    svc.delete_all_reservation_events()
+    
+    # Test with current date
+    print("\n=== Testing with current date ===")
+    now = datetime.datetime.now(datetime.timezone.utc)
+    events = svc._retrieve_events_by_proximity(now)
+    print(f"Events by proximity to {now.strftime('%Y-%m-%d %H:%M:%S')}:")
+    print(events)
+    
+    # Test with a specific date
+    # print("\n=== Testing with specific date ===")
+    # specific_date = datetime.datetime(2025, 5, 15, tzinfo=datetime.timezone.utc)
+    # events = svc._retrieve_events_by_proximity(specific_date)
+    # print(f"Events by proximity to {specific_date.strftime('%Y-%m-%d %H:%M:%S')}:")
+    
+    # # Test with string date
+    # print("\n=== Testing with string date ===")
+    # date_string = "2025-06-01T12:00:00+00:00"
+    # events = svc._retrieve_events_by_proximity(date_string)
+    # print(f"Events by proximity to {date_string}:")
+    
+    # # Display events
+    # if events:
+    #     reference_date = datetime.datetime.fromisoformat(date_string)
+    #     for i, event in enumerate(events[:5]):  # Show first 5 events
+    #         start_time = event.get("start", {}).get("dateTime")
+    #         if start_time:
+    #             try:
+    #                 event_time = datetime.datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+    #                 time_diff = event_time - reference_date
+    #                 days_diff = time_diff.days
+    #                 hours_diff = (time_diff.seconds // 3600)
+                    
+    #                 past_future = "PAST" if time_diff.total_seconds() < 0 else "FUTURE"
+    #                 print(f"{i+1}. {past_future}: {event.get('summary')} - {abs(days_diff)}d {abs(hours_diff)}h {'before' if past_future == 'PAST' else 'after'} reference date")
+    #             except ValueError:
+    #                 print(f"{i+1}. Error parsing date: {event.get('summary')} - {start_time}")
+    # else:
+    #     print("No events found")

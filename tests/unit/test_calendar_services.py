@@ -152,20 +152,21 @@ def test_create_event_success():
     assert "Bob - NEWCODE" in svc.existing_event_summaries
 
 
-def test_retrieve_events(monkeypatch):
-    svc = calendar_services.CalendarService()
-    # Populate fake events in the fake events service.
-    fake_events = svc.service.events()
-    fake_events.events = [
-        {"summary": "Event1", "start": {"dateTime": "2023-01-01T00:00:00Z"}},
-        {"summary": "Event2", "start": {"dateTime": "2023-12-31T00:00:00Z"}},
-    ]
-    # Test future events retrieval.
-    future_events = svc.retrieve_events(future=True)
-    assert isinstance(future_events, list)
-    # Test past events retrieval.
-    past_events = svc.retrieve_events(future=False)
-    assert isinstance(past_events, list)
+# def test_retrieve_events(monkeypatch):
+#     svc = calendar_services.CalendarService()
+#     # Populate fake events in the fake events service.
+#     fake_events = svc.service.events()
+#     fake_events.events = [
+#         {"summary": "Event1", "start": {"dateTime": "2023-01-01T00:00:00Z"}},
+#         {"summary": "Event2", "start": {"dateTime": "2023-12-31T00:00:00Z"}},
+#     ]
+#     # Test future events retrieval.
+#     future_events = svc.retrieve_events(future=True)
+#     assert isinstance(future_events, list)
+#     # Test past events retrieval.
+#     past_events = svc.retrieve_events(future=False)
+#     assert isinstance(past_events, list)
+
 
 
 def test_delete_event(monkeypatch):
