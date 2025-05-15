@@ -168,7 +168,6 @@ def test_create_event_success():
 #     assert isinstance(past_events, list)
 
 
-
 def test_delete_event(monkeypatch):
     svc = calendar_services.CalendarService()
     fake_events = svc.service.events()
@@ -195,3 +194,156 @@ def test_delete_all_reservation_events(monkeypatch):
     assert "evt1" in fake_events.deleted_ids
     assert "evt3" in fake_events.deleted_ids
     assert "evt2" not in fake_events.deleted_ids
+
+
+def test_check_event_conflict():
+    """Test the _check_event_conflict method."""
+    svc = calendar_services.CalendarService()
+    
+    # Setup: Override the _retrieve_events_by_proximity method to return fake events
+    def mock_retrieve_events(reference_date=None):
+        # Return fake events that overlap with our test period
+        return [
+            {
+                "id": "evt1",
+                "summary": "Existing Event",
+                "start": {"dateTime": "2023-05-15T10:00:00Z"},
+                "end": {"dateTime": "2023-05-18T12:00:00Z"}
+            }
+        ]
+    
+    # Replace the real method with our mock
+    original_retrieve = svc._retrieve_events_by_proximity
+    svc._retrieve_events_by_proximity = mock_retrieve_events
+    
+    try:
+        # Test case 1: New event starts during existing event (conflict)
+        start_time = datetime.datetime.fromisoformat("2023-05-17T08:00:00+00:00")
+        end_time = datetime.datetime.fromisoformat("2023-05-20T12:00:00+00:00")
+        assert svc._check_event_conflict(start_time, end_time) is True
+        
+        # Test case 2: New event ends during existing event (conflict)
+        start_time = datetime.datetime.fromisoformat("2023-05-14T08:00:00+00:00")
+        end_time = datetime.datetime.fromisoformat("2023-05-16T12:00:00+00:00")
+        assert svc._check_event_conflict(start_time, end_time) is True
+        
+        # Test case 3: New event completely contains existing event (conflict)
+        start_time = datetime.datetime.fromisoformat("2023-05-14T08:00:00+00:00")
+        end_time = datetime.datetime.fromisoformat("2023-05-20T12:00:00+00:00")
+        assert svc._check_event_conflict(start_time, end_time) is True
+        
+        # Test case 4: New event is completely contained within existing event (conflict)
+        start_time = datetime.datetime.fromisoformat("2023-05-16T08:00:00+00:00")
+        end_time = datetime.datetime.fromisoformat("2023-05-17T12:00:00+00:00")
+        assert svc._check_event_conflict(start_time, end_time) is True
+        
+        # Test case 5: No overlap (no conflict)
+        start_time = datetime.datetime.fromisoformat("2023-05-20T08:00:00+00:00")
+        end_time = datetime.datetime.fromisoformat("2023-05-22T12:00:00+00:00")
+        assert svc._check_event_conflict(start_time, end_time) is False
+        
+    finally:
+        # Restore the original method
+        svc._retrieve_events_by_proximity = original_retrieve
+
+
+def test_create_event_with_conflict():
+    """Test creating an event that conflicts with another event."""
+    svc = calendar_services.CalendarService()
+    
+    # Setup: Override the _check_event_conflict method to simulate a conflict
+    original_check = svc._check_event_conflict
+    svc._check_event_conflict = lambda start_time, end_time: True
+    
+    try:
+        # Create an event (with simulated conflict)
+        reservation = {
+            "arrival_date": datetime.datetime.now().isoformat(),
+            "departure_date": (
+                datetime.datetime.now() + datetime.timedelta(hours=24)
+            ).isoformat(),
+            "name": "Conflict Person",
+            "confirmation_code": "CONFLICT123",
+            "number_of_adults": 2,
+            "number_of_children": 1,
+            "country": "USA",
+        }
+        
+        # Test with attendees for notifications
+        attendees = ["notify1@example.com", "notify2@example.com"]
+        result = svc.create_event(attendees=attendees, **reservation)
+        
+        # Verify the event was created with conflict indicators
+        assert result is not None
+        assert result.get("summary").startswith("[CONFLICT]")
+        assert "Conflict Person - CONFLICT123" in result.get("summary")
+        
+        # Check reminders were set for 3 days and 1 day before
+        reminders = result.get("reminders", {}).get("overrides", [])
+        reminder_minutes = [r.get("minutes") for r in reminders if r.get("method") == "email"]
+        assert 3 * 24 * 60 in reminder_minutes  # 3 days
+        assert 24 * 60 in reminder_minutes  # 1 day
+        
+        # Verify attendees were properly set
+        event_attendees = result.get("attendees", [])
+        attendee_emails = [a.get("email") for a in event_attendees]
+        assert "notify1@example.com" in attendee_emails
+        assert "notify2@example.com" in attendee_emails
+        
+        # Verify the event description contains conflict warning
+        assert "⚠️ WARNING" in result.get("description")
+        
+    finally:
+        # Restore the original method
+        svc._check_event_conflict = original_check
+
+
+def test_create_event_without_conflict():
+    """Test creating an event that does not conflict with other events."""
+    svc = calendar_services.CalendarService()
+    
+    # Setup: Override the _check_event_conflict method to simulate no conflict
+    original_check = svc._check_event_conflict
+    svc._check_event_conflict = lambda start_time, end_time: False
+    
+    try:
+        # Create an event (with no conflict)
+        reservation = {
+            "arrival_date": datetime.datetime.now().isoformat(),
+            "departure_date": (
+                datetime.datetime.now() + datetime.timedelta(hours=24)
+            ).isoformat(),
+            "name": "Normal Person",
+            "confirmation_code": "NORMAL123",
+            "number_of_adults": 2,
+            "number_of_children": 0,
+            "country": "Canada",
+        }
+        
+        # Test with regular attendees
+        attendees = ["regular@example.com"]
+        result = svc.create_event(attendees=attendees, **reservation)
+        
+        # Verify the event was created without conflict indicators
+        assert result is not None
+        assert not result.get("summary").startswith("[CONFLICT]")
+        assert result.get("summary") == "Normal Person - NORMAL123"
+        
+        # Check reminders were set only for 1 day before (standard behavior)
+        reminders = result.get("reminders", {}).get("overrides", [])
+        reminder_minutes = [r.get("minutes") for r in reminders if r.get("method") == "email"]
+        assert 3 * 24 * 60 not in reminder_minutes  # No 3-day reminder
+        assert 24 * 60 in reminder_minutes  # 1 day
+        
+        # Verify only the regular attendee was set
+        event_attendees = result.get("attendees", [])
+        attendee_emails = [a.get("email") for a in event_attendees]
+        assert len(attendee_emails) == 1
+        assert "regular@example.com" in attendee_emails
+        
+        # Verify the event description does not contain conflict warning
+        assert "⚠️ WARNING" not in result.get("description")
+        
+    finally:
+        # Restore the original method
+        svc._check_event_conflict = original_check

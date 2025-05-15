@@ -36,6 +36,14 @@ ics = "^0.7"
 [tool.isort]
 profile = "black"
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests as integration tests that interact with external services (select with '-m integration')",
+]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
