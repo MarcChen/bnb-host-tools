@@ -2,10 +2,10 @@
 import datetime
 import os
 import warnings
-from rich import print
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from rich import print
 
 # Import auth functions
 from services.google_integration.authentification import (
@@ -43,35 +43,17 @@ class CalendarService:
             evt.get("summary", "") for evt in existing_events
         )
 
-    def create_event(self, attendees=None, **reservation):
-        """Create a calendar event for a reservation.
-        
-        This method creates a Google Calendar event with details from the reservation. 
-        If the event conflicts with existing events (based on date/time overlap),
-        special handling is applied:
-        - The event title is prefixed with "[CONFLICT]"
-        - Email notifications are set for 3 days and 1 day before the event
-        
+    def _parse_reservation_data(self, reservation):
+        """Parse and validate reservation data.
+
         Args:
-            attendees (list[str], optional): List of email addresses to be added as attendees.
-                For conflict notifications, make sure to include all necessary notification
-                email addresses in this list.
-            **reservation: Keyword arguments for reservation details including:
-                arrival_date (str): ISO format date string for check-in.
-                departure_date (str): ISO format date string for check-out.
-                name (str): Guest name.
-                confirmation_code (str): Reservation confirmation code.
-                number_of_adults (int, optional): Number of adult guests. Default is 1.
-                number_of_children (int, optional): Number of child guests. Default is 0.
-                country (str, optional): Country of origin. Default is "France".
-                
+            reservation (dict): Reservation details
+
         Returns:
-            dict: Created event object from Google Calendar API, or None if event already exists
-                  or if an error occurs during creation.
-                  
+            tuple: Parsed data (start_time, end_time, person_name, reservation_code, adults, children, country)
+
         Raises:
-            ValueError: If arrival_date or departure_date are missing from the reservation.
-            HttpError: If an API error occurs during event creation.
+            ValueError: If required fields are missing
         """
         arrival_date_str = reservation.get("arrival_date")
         departure_date_str = reservation.get("departure_date")
@@ -85,39 +67,71 @@ class CalendarService:
         adults = reservation.get("number_of_adults", 1)
         children = reservation.get("number_of_children", 0)
         country = reservation.get("country", "France")
-        # Replace the existing check with a call to event_exists.
-        if self.event_exists(reservation_code):
-            warnings.warn(
-                f"An event with reservation code '{reservation_code}' already exists.",
-                UserWarning,
-            )
-            return None
-            
-        # Check for conflicts with existing events
-        has_conflict = self._check_event_conflict(start_time, end_time)
-        
-        # Create event title and description based on reservation details.
+
+        return (
+            start_time,
+            end_time,
+            person_name,
+            reservation_code,
+            adults,
+            children,
+            country,
+        )
+
+    def _create_event_content(
+        self, person_name, reservation_code, adults, children, country, has_conflict
+    ):
+        """Create event summary and description.
+
+        Args:
+            person_name (str): Guest name
+            reservation_code (str): Reservation confirmation code
+            adults (int): Number of adult guests
+            children (int): Number of child guests
+            country (str): Country of origin
+            has_conflict (bool): Whether this event conflicts with existing events
+
+        Returns:
+            tuple: (event_summary, description)
+        """
+        # Create event title
         event_summary = f"{person_name} - {reservation_code}"
         if has_conflict:
             event_summary = f"[CONFLICT] {event_summary}"
-            
+
+        # Create English description
         description_en = (
             f"Reservation by {person_name} from {country}. Adults: {adults}"
         )
         if children is not None:
             description_en += f", Children: {children}"
         if has_conflict:
-            description_en += "\n⚠️ WARNING: This reservation conflicts with another booking!"
-            
+            description_en += (
+                "\n⚠️ WARNING: This reservation conflicts with another booking!"
+            )
+
+        # Create Chinese description
         description_cn = f"{person_name} 的预订，来自 {country}。成人: {adults}"
         if children is not None:
             description_cn += f"，儿童: {children}"
         if has_conflict:
             description_cn += "\n⚠️ 警告：此预订与其他预订冲突！"
-            
+
+        # Combine descriptions
         description = description_en + "\n----\n" + description_cn
-        
-        # Set up reminders based on conflict status
+
+        return event_summary, description
+
+    def _create_reminders(self, has_conflict):
+        """Create reminders configuration based on conflict status.
+
+        Args:
+            has_conflict (bool): Whether this event conflicts with existing events
+
+        Returns:
+            dict: Reminders configuration for the event
+        """
+        # Default reminders for regular events
         reminders = {
             "useDefault": False,
             "overrides": [
@@ -125,28 +139,114 @@ class CalendarService:
                 {"method": "popup", "minutes": 10},
             ],
         }
-        
+
+        # Enhanced reminders for conflicting events
         if has_conflict:
-            # Replace with 3-day and 1-day email notifications for conflicts
             reminders["overrides"] = [
                 {"method": "email", "minutes": 3 * 24 * 60},  # 3 days before
-                {"method": "email", "minutes": 24 * 60},      # 1 day before
+                {"method": "email", "minutes": 24 * 60},  # 1 day before
                 {"method": "popup", "minutes": 10},
             ]
-        
+
+        return reminders
+
+    def _build_event_object(
+        self, summary, description, start_time, end_time, reminders, attendees=None
+    ):
+        """Build the complete event object for the API.
+
+        Args:
+            summary (str): Event summary/title
+            description (str): Event description
+            start_time (datetime): Event start time
+            end_time (datetime): Event end time
+            reminders (dict): Reminders configuration
+            attendees (list, optional): List of attendee email addresses
+
+        Returns:
+            dict: Complete event object ready for API submission
+        """
         event = {
-            "summary": event_summary,
+            "summary": summary,
             "location": "7 Rue Curial, 75019 Paris, France",
             "description": description,
             "start": {"dateTime": start_time.isoformat(), "timeZone": "UTC"},
             "end": {"dateTime": end_time.isoformat(), "timeZone": "UTC"},
             "reminders": reminders,
         }
-        
-        # Add attendees based on conflict status
+
+        # Add attendees if provided
         if attendees is not None:
             event["attendees"] = [{"email": email} for email in attendees]
-            
+
+        return event
+
+    def create_event(self, attendees=None, **reservation):
+        """Create a calendar event for a reservation.
+
+        This method creates a Google Calendar event with details from the reservation.
+        If the event conflicts with existing events (based on date/time overlap),
+        special handling is applied:
+        - The event title is prefixed with "[CONFLICT]"
+        - Email notifications are set for 3 days and 1 day before the event
+
+        Args:
+            attendees (list[str], optional): List of email addresses to be added as attendees.
+                For conflict notifications, make sure to include all necessary notification
+                email addresses in this list.
+            **reservation: Keyword arguments for reservation details including:
+                arrival_date (str): ISO format date string for check-in.
+                departure_date (str): ISO format date string for check-out.
+                name (str): Guest name.
+                confirmation_code (str): Reservation confirmation code.
+                number_of_adults (int, optional): Number of adult guests. Default is 1.
+                number_of_children (int, optional): Number of child guests. Default is 0.
+                country (str, optional): Country of origin. Default is "France".
+
+        Returns:
+            dict: Created event object from Google Calendar API, or None if event already exists
+                  or if an error occurs during creation.
+
+        Raises:
+            ValueError: If arrival_date or departure_date are missing from the reservation.
+            HttpError: If an API error occurs during event creation.
+        """
+        # Parse reservation data
+        (
+            start_time,
+            end_time,
+            person_name,
+            reservation_code,
+            adults,
+            children,
+            country,
+        ) = self._parse_reservation_data(reservation)
+
+        # Check for duplicate events
+        if self.event_exists(reservation_code):
+            warnings.warn(
+                f"An event with reservation code '{reservation_code}' already exists.",
+                UserWarning,
+            )
+            return None
+
+        # Check for conflicts with existing events
+        has_conflict = self._check_event_conflict(start_time, end_time)
+
+        # Create event content
+        event_summary, description = self._create_event_content(
+            person_name, reservation_code, adults, children, country, has_conflict
+        )
+
+        # Set up reminders
+        reminders = self._create_reminders(has_conflict)
+
+        # Build the complete event object
+        event = self._build_event_object(
+            event_summary, description, start_time, end_time, reminders, attendees
+        )
+
+        # Submit the event to Google Calendar API
         try:
             created_event = (
                 self.service.events()
@@ -163,20 +263,20 @@ class CalendarService:
 
     def _retrieve_past_day_events(self, reference_date):
         """Retrieve events from the past day relative to a reference date.
-        
+
         Args:
             reference_date: The reference datetime to measure from
-        
+
         Returns:
             List of past events ordered by startTime (earliest first)
-            
+
         Raises:
             ValueError: If more than 2 events are found in the given time range
         """
         past_date = reference_date - datetime.timedelta(days=1)
         past_date_iso = past_date.isoformat()
         reference_date_iso = reference_date.isoformat()
-        
+
         try:
             past_events_result = (
                 self.service.events()
@@ -191,28 +291,30 @@ class CalendarService:
             )
             events = past_events_result.get("items", [])
             if len(events) > 2:
-                raise ValueError(f"Too many events found in past day: {len(events)}. Maximum allowed is 2.")
+                raise ValueError(
+                    f"Too many events found in past day: {len(events)}. Maximum allowed is 2."
+                )
             return events
         except HttpError as error:
             print(f"An error occurred retrieving past events: {error}")
             return []
-    
+
     def _retrieve_future_day_events(self, reference_date):
         """Retrieve events for the next day relative to a reference date.
-        
+
         Args:
             reference_date: The reference datetime to measure from
-        
+
         Returns:
             List of future events ordered by startTime (earliest first)
-            
+
         Raises:
             ValueError: If more than 2 events are found in the given time range
         """
         future_date = reference_date + datetime.timedelta(days=1)
         future_date_iso = future_date.isoformat()
         reference_date_iso = reference_date.isoformat()
-        
+
         try:
             future_events_result = (
                 self.service.events()
@@ -227,7 +329,9 @@ class CalendarService:
             )
             events = future_events_result.get("items", [])
             if len(events) > 2:
-                raise ValueError(f"Too many events found in future day: {len(events)}. Maximum allowed is 2.")
+                raise ValueError(
+                    f"Too many events found in future day: {len(events)}. Maximum allowed is 2."
+                )
             return events
         except HttpError as error:
             print(f"An error occurred retrieving future events: {error}")
@@ -236,15 +340,15 @@ class CalendarService:
     def _retrieve_events_by_proximity(self, reference_date=None):
         """Retrieve events sorted by proximity to a reference date.
         Returns closest past events (within one day) followed by closest future events (within one day).
-        
+
         Args:
             reference_date: The reference date to measure proximity against.
                            Can be a datetime object or an ISO format string.
                            If None, current time is used.
-        
+
         Returns:
             List of events sorted by proximity to the reference date.
-            
+
         Raises:
             ValueError: If more than 2 events are found in either past or future time range
         """
@@ -253,83 +357,95 @@ class CalendarService:
             reference_date = datetime.datetime.now(datetime.timezone.utc)
         elif isinstance(reference_date, str):
             try:
-                reference_date = datetime.datetime.fromisoformat(reference_date.replace('Z', '+00:00'))
+                reference_date = datetime.datetime.fromisoformat(
+                    reference_date.replace("Z", "+00:00")
+                )
                 if reference_date.tzinfo is None:
-                    reference_date = reference_date.replace(tzinfo=datetime.timezone.utc)
+                    reference_date = reference_date.replace(
+                        tzinfo=datetime.timezone.utc
+                    )
             except ValueError:
-                raise ValueError("Invalid date format. Please use ISO format (YYYY-MM-DDTHH:MM:SS+00:00)")
-        
+                raise ValueError(
+                    "Invalid date format. Please use ISO format (YYYY-MM-DDTHH:MM:SS+00:00)"
+                )
+
         past_events = self._retrieve_past_day_events(reference_date)
         future_events = self._retrieve_future_day_events(reference_date)
-        
+
         return past_events + future_events
 
     def _check_event_conflict(self, start_time, end_time):
         """Check if a new event overlaps with existing events.
-        
+
         Args:
             start_time: The start datetime of the new event
             end_time: The end datetime of the new event
-            
+
         Returns:
             bool: True if there is a conflict, False otherwise
         """
         # Get events that might overlap with the new event
         past_events = self._retrieve_events_by_proximity(start_time)
         future_events = self._retrieve_events_by_proximity(end_time)
-        
+
         # Combine events and remove duplicates
         all_events = []
         event_ids = set()
-        
+
         for event in past_events + future_events:
             event_id = event.get("id")
             if event_id and event_id not in event_ids:
                 all_events.append(event)
                 event_ids.add(event_id)
-        
+
         # Check for overlaps
         for event in all_events:
             event_start = event.get("start", {}).get("dateTime")
             event_end = event.get("end", {}).get("dateTime")
-            
+
             if not event_start or not event_end:
                 continue
-                
+
             try:
-                event_start_dt = datetime.datetime.fromisoformat(event_start.replace('Z', '+00:00'))
-                event_end_dt = datetime.datetime.fromisoformat(event_end.replace('Z', '+00:00'))
-                
+                event_start_dt = datetime.datetime.fromisoformat(
+                    event_start.replace("Z", "+00:00")
+                )
+                event_end_dt = datetime.datetime.fromisoformat(
+                    event_end.replace("Z", "+00:00")
+                )
+
                 # Check if there's an overlap
                 # Case 1: New event starts during an existing event
                 # Case 2: New event ends during an existing event
                 # Case 3: New event completely contains an existing event
                 # Case 4: New event is completely contained within an existing event
-                
-                if ((event_start_dt <= start_time <= event_end_dt) or
-                    (event_start_dt <= end_time <= event_end_dt) or
-                    (start_time <= event_start_dt and end_time >= event_end_dt) or
-                    (start_time >= event_start_dt and end_time <= event_end_dt)):
+
+                if (
+                    (event_start_dt <= start_time <= event_end_dt)
+                    or (event_start_dt <= end_time <= event_end_dt)
+                    or (start_time <= event_start_dt and end_time >= event_end_dt)
+                    or (start_time >= event_start_dt and end_time <= event_end_dt)
+                ):
                     return True
-                    
+
             except ValueError:
                 # Skip events with invalid datetime format
                 continue
-                
+
         return False
 
     def delete_event(self, reservation_code):
         """Delete calendar events associated with a specific reservation code.
-        
+
         This method searches for and deletes any events that contain the specified
         reservation code in their summary.
-        
+
         Args:
             reservation_code (str): The reservation confirmation code to search for in events.
-            
+
         Returns:
             None
-            
+
         Raises:
             HttpError: If an API error occurs during event deletion.
         """
@@ -356,13 +472,13 @@ class CalendarService:
 
     def event_exists(self, reservation_code):
         """Check if an event with the given reservation code already exists.
-        
+
         This method checks the cached event summaries to determine if an event
         with the specified reservation code already exists in the calendar.
-        
+
         Args:
             reservation_code (str): The reservation confirmation code to check.
-            
+
         Returns:
             bool: True if an event with this reservation code exists, False otherwise.
         """
