@@ -131,3 +131,23 @@ This pull request includes updates to data files and significant changes to the 
   * Added `parse_mail_date` method to extract the mail date from the 'Snippet' field to handle cases where the 'Date' field has a lag or incorrect year.
   * Removed the `append_booking_data_to_csv` and `confirmation_code_exists_in_csv` methods, simplifying the codebase by eliminating unused functions.
 
+## [0.4.0] - 2025-05-18
+- Merged PR #8 by @MarcChen: Feature/adding calendar events when consecutive days
+This pull request introduces significant enhancements to the Google Calendar integration service, focusing on conflict detection, event management, and integration testing. Key changes include adding conflict detection for overlapping events, improving event creation logic, and introducing a robust integration testing framework.
+
+### Enhancements to Google Calendar Event Management:
+* **Conflict Detection and Handling**: Added logic to detect overlapping events and mark them with a `[CONFLICT]` prefix in the title. Conflict events include warnings in their descriptions and customized email reminders.
+* **New Event Retrieval Methods**: Introduced `_retrieve_past_day_events`, `_retrieve_future_day_events`, and `_retrieve_events_by_proximity` methods to fetch events based on proximity to a reference date, enabling more granular event management.
+* **Improved Event Deletion**: Enhanced the `delete_event` method with better documentation and error handling.
+
+### Integration Testing Framework:
+* **Integration Test Setup**: Added a new `tests/integration` directory with a README explaining how to run integration tests. These tests interact with real Google Calendar APIs and require valid credentials [[1]](diffhunk://#diff-a3fdc939eba6bf3f6c81027112cbc8595bdcef44801d2e9e10c276c2a58c306fR1-R34) [[2]](diffhunk://#diff-6ec5224a3ecfa5b56e1dce12620fffa868d0b50190add628982d3596085b7e9dR1).
+* **Test Cases for Conflict Detection**: Created integration tests to validate conflict detection and event creation logic, ensuring proper handling of overlapping reservations.
+* **Proximity-Based Event Retrieval Test**: Added tests to verify the functionality of the `_retrieve_events_by_proximity` method.
+
+### Configuration and Documentation Updates:
+* **Pytest Configuration**: Updated `pyproject.toml` to include pytest markers for integration tests and specify test file naming conventions.
+* **Rich Library Import**: Added the `rich` library for improved logging and debugging. 
+
+These changes enhance the robustness and reliability of the calendar service while ensuring thorough testing in real-world scenarios.
+
