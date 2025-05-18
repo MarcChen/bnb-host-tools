@@ -63,13 +63,13 @@ class CalendarService:
         # Parse dates and ensure they have timezone info (UTC)
         start_time = datetime.datetime.fromisoformat(arrival_date_str)
         end_time = datetime.datetime.fromisoformat(departure_date_str)
-        
+
         # Add timezone info if missing
         if start_time.tzinfo is None:
             start_time = start_time.replace(tzinfo=datetime.timezone.utc)
         if end_time.tzinfo is None:
             end_time = end_time.replace(tzinfo=datetime.timezone.utc)
-            
+
         person_name = reservation.get("name", "Unknown")
         reservation_code = reservation.get("confirmation_code", "")
         adults = reservation.get("number_of_adults", 1)
@@ -237,7 +237,7 @@ class CalendarService:
                 UserWarning,
             )
             return None
-            
+
         # Check for conflicts with existing events
         has_conflict = self._check_event_conflict(start_time, end_time)
 
@@ -282,15 +282,17 @@ class CalendarService:
             ValueError: If more than 2 events are found in the given time range
         """
         past_date = reference_date - datetime.timedelta(days=1)
-        
+
         # Format dates as RFC3339 strings for Google Calendar API
         # Create proper RFC3339 format (always use Z for UTC)
         # This ensures we don't have issues with URL encoding
         past_date = past_date.astimezone(datetime.timezone.utc).replace(microsecond=0)
-        reference_date = reference_date.astimezone(datetime.timezone.utc).replace(microsecond=0)
-        
-        past_date_iso = past_date.strftime('%Y-%m-%dT%H:%M:%SZ')
-        reference_date_iso = reference_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+        reference_date = reference_date.astimezone(datetime.timezone.utc).replace(
+            microsecond=0
+        )
+
+        past_date_iso = past_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+        reference_date_iso = reference_date.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         try:
             past_events_result = (
@@ -327,15 +329,19 @@ class CalendarService:
             ValueError: If more than 2 events are found in the given time range
         """
         future_date = reference_date + datetime.timedelta(days=1)
-        
+
         # Format dates as RFC3339 strings for Google Calendar API
         # Create proper RFC3339 format (always use Z for UTC)
         # This ensures we don't have issues with URL encoding
-        future_date = future_date.astimezone(datetime.timezone.utc).replace(microsecond=0)
-        reference_date = reference_date.astimezone(datetime.timezone.utc).replace(microsecond=0)
-        
-        future_date_iso = future_date.strftime('%Y-%m-%dT%H:%M:%SZ')
-        reference_date_iso = reference_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+        future_date = future_date.astimezone(datetime.timezone.utc).replace(
+            microsecond=0
+        )
+        reference_date = reference_date.astimezone(datetime.timezone.utc).replace(
+            microsecond=0
+        )
+
+        future_date_iso = future_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+        reference_date_iso = reference_date.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         try:
             future_events_result = (
@@ -380,23 +386,25 @@ class CalendarService:
         elif isinstance(reference_date, str):
             try:
                 # Handle different ISO format variations
-                if reference_date.endswith('Z'):
+                if reference_date.endswith("Z"):
                     # If it ends with Z, it's already in UTC
                     dt_str = reference_date[:-1]  # Remove the Z
                     reference_date = datetime.datetime.fromisoformat(dt_str).replace(
                         tzinfo=datetime.timezone.utc
                     )
-                elif '+' in reference_date:
+                elif "+" in reference_date:
                     # If it has a timezone offset
                     reference_date = datetime.datetime.fromisoformat(reference_date)
                 else:
                     # No timezone info, assume UTC
-                    reference_date = datetime.datetime.fromisoformat(reference_date).replace(
-                        tzinfo=datetime.timezone.utc
-                    )
+                    reference_date = datetime.datetime.fromisoformat(
+                        reference_date
+                    ).replace(tzinfo=datetime.timezone.utc)
             except ValueError:
                 # Fallback to current time if parsing fails
-                print(f"Warning: Could not parse date '{reference_date}'. Using current time instead.")
+                print(
+                    f"Warning: Could not parse date '{reference_date}'. Using current time instead."
+                )
                 reference_date = datetime.datetime.now(datetime.timezone.utc)
 
         past_events = self._retrieve_past_day_events(reference_date)
@@ -404,7 +412,7 @@ class CalendarService:
 
         return past_events + future_events
 
-    def _check_event_conflict(self, start_time, end_time):
+    def _check_event_conflict(self, start_time, end_time):  # noqa: C901
         """Check if a new event overlaps with existing events.
 
         Args:
@@ -413,11 +421,11 @@ class CalendarService:
 
         Returns:
             bool: True if there is a conflict, False otherwise
-        """        
+        """
         # Get events that might overlap with the new event
         past_events = self._retrieve_events_by_proximity(start_time)
         future_events = self._retrieve_events_by_proximity(end_time)
-                
+
         # Combine events and remove duplicates
         all_events = []
         event_ids = set()
@@ -427,7 +435,7 @@ class CalendarService:
             if event_id and event_id not in event_ids:
                 all_events.append(event)
                 event_ids.add(event_id)
-                
+
         # Check for overlaps
         for event in all_events:
             event_start = event.get("start", {}).get("dateTime")
@@ -445,16 +453,16 @@ class CalendarService:
                 event_end_dt = datetime.datetime.fromisoformat(
                     event_end.replace("Z", "+00:00")
                 )
-                                
+
                 # Ensure start_time and end_time have timezone info
                 if start_time.tzinfo is None:
-                    print(f"Warning: start_time has no timezone, adding UTC")
+                    print("Warning: start_time has no timezone, adding UTC")
                     start_time_aware = start_time.replace(tzinfo=datetime.timezone.utc)
                 else:
                     start_time_aware = start_time
-                
+
                 if end_time.tzinfo is None:
-                    print(f"Warning: end_time has no timezone, adding UTC")
+                    print("Warning: end_time has no timezone, adding UTC")
                     end_time_aware = end_time.replace(tzinfo=datetime.timezone.utc)
                 else:
                     end_time_aware = end_time
@@ -465,12 +473,18 @@ class CalendarService:
                 # Case 2: New event ends during an existing event
                 case2 = event_start_dt <= end_time_aware <= event_end_dt
                 # Case 3: New event completely contains an existing event
-                case3 = start_time_aware <= event_start_dt and end_time_aware >= event_end_dt
+                case3 = (
+                    start_time_aware <= event_start_dt
+                    and end_time_aware >= event_end_dt
+                )
                 # Case 4: New event is completely contained within an existing event
-                case4 = start_time_aware >= event_start_dt and end_time_aware <= event_end_dt
-                
+                case4 = (
+                    start_time_aware >= event_start_dt
+                    and end_time_aware <= event_end_dt
+                )
+
                 if case1 or case2 or case3 or case4:
-                    print(f"CONFLICT DETECTED")
+                    print("CONFLICT DETECTED")
                     return True
 
             except ValueError as e:
@@ -480,8 +494,12 @@ class CalendarService:
             except TypeError as e:
                 print(f"TypeError comparing dates for '{event_summary}': {e}")
                 # Add more diagnostic information without accessing potentially unbound variables
-                print(f"New event start timezone: {start_time.tzinfo if hasattr(start_time, 'tzinfo') else 'None'}")
-                print(f"New event end timezone: {end_time.tzinfo if hasattr(end_time, 'tzinfo') else 'None'}")
+                print(
+                    f"New event start timezone: {start_time.tzinfo if hasattr(start_time, 'tzinfo') else 'None'}"
+                )
+                print(
+                    f"New event end timezone: {end_time.tzinfo if hasattr(end_time, 'tzinfo') else 'None'}"
+                )
                 continue
 
         print("No conflicts found with any existing events")
