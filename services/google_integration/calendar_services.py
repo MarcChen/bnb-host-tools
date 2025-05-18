@@ -238,13 +238,8 @@ class CalendarService:
             )
             return None
             
-        # Print reservation details for debugging
-        print(f"[DEBUG] Processing reservation: {person_name}, code: {reservation_code}")
-        print(f"[DEBUG] Dates: {start_time} to {end_time}")
-
         # Check for conflicts with existing events
         has_conflict = self._check_event_conflict(start_time, end_time)
-        print(f"[DEBUG] Event conflict status: {has_conflict}")
 
         # Create event content
         event_summary, description = self._create_event_content(
@@ -418,15 +413,11 @@ class CalendarService:
 
         Returns:
             bool: True if there is a conflict, False otherwise
-        """
-        print(f"CHECKING CONFLICT: New event from {start_time} to {end_time}")
-        
+        """        
         # Get events that might overlap with the new event
         past_events = self._retrieve_events_by_proximity(start_time)
         future_events = self._retrieve_events_by_proximity(end_time)
-        
-        print(f"Retrieved {len(past_events)} past events and {len(future_events)} future events")
-        
+                
         # Combine events and remove duplicates
         all_events = []
         event_ids = set()
@@ -437,8 +428,6 @@ class CalendarService:
                 all_events.append(event)
                 event_ids.add(event_id)
                 
-        print(f"Found {len(all_events)} unique events to check for conflicts")
-
         # Check for overlaps
         for event in all_events:
             event_start = event.get("start", {}).get("dateTime")
@@ -456,9 +445,7 @@ class CalendarService:
                 event_end_dt = datetime.datetime.fromisoformat(
                     event_end.replace("Z", "+00:00")
                 )
-                
-                print(f"Checking event: '{event_summary}' - {event_start_dt} to {event_end_dt}")
-                
+                                
                 # Ensure start_time and end_time have timezone info
                 if start_time.tzinfo is None:
                     print(f"Warning: start_time has no timezone, adding UTC")
@@ -482,10 +469,8 @@ class CalendarService:
                 # Case 4: New event is completely contained within an existing event
                 case4 = start_time_aware >= event_start_dt and end_time_aware <= event_end_dt
                 
-                print(f"Overlap conditions: starts during={case1}, ends during={case2}, contains={case3}, contained={case4}")
-
                 if case1 or case2 or case3 or case4:
-                    print(f"CONFLICT DETECTED with event '{event_summary}'")
+                    print(f"CONFLICT DETECTED")
                     return True
 
             except ValueError as e:
