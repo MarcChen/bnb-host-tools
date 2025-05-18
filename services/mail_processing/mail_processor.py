@@ -1,3 +1,5 @@
+import os
+
 from rich import print
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -15,6 +17,20 @@ class MailProcessorService:
         self.notion_client = NotionClient()
         self.calendar_service = CalendarService()
         self.debug = debug
+
+        # Initialize attendees list if in debug mode
+        if self.debug:
+            attendees = self._get_calendar_notification_attendees()
+            if attendees:
+                print(
+                    f"[bold cyan]Loaded {len(attendees)} calendar notification attendees from environment:[/bold cyan]"
+                )
+                for attendee in attendees:
+                    print(f"  - {attendee}")
+            else:
+                print(
+                    "[yellow]No calendar notification attendees configured in environment[/yellow]"
+                )
 
     def parse_reserved_mails(self) -> list:
         """Second step: Get reserved emails and parse them"""
@@ -126,6 +142,25 @@ class MailProcessorService:
         except Exception as error:
             print(f"An error occurred while processing unread emails: {error}")
 
+    def _get_calendar_notification_attendees(self):
+        """Get the list of email addresses to notify for calendar events.
+
+        Loads notification attendees from CALENDAR_NOTIFICATION_ATTENDEES environment variable.
+        Expects a comma-separated list of email addresses.
+
+        Returns:
+            list: List of email addresses to add as attendees for calendar notifications
+        """
+        attendees_string = os.environ.get("CALENDAR_NOTIFICATION_ATTENDEES", "")
+        if not attendees_string:
+            return []
+
+        # Split by comma and strip whitespace
+        attendees = [
+            email.strip() for email in attendees_string.split(",") if email.strip()
+        ]
+        return attendees
+
     def run_workflow(self) -> None:
         """Execute the complete workflow"""
         console = Console()
@@ -197,7 +232,17 @@ class MailProcessorService:
                             style="yellow",
                         )
                     else:
-                        self.calendar_service.create_event(**reservation)
+                        # Get notification attendees from environment
+                        attendees = self._get_calendar_notification_attendees()
+                        if attendees:
+                            print(
+                                f"[bold cyan]Adding {len(attendees)} notification recipient(s) to calendar event[/bold cyan]"
+                            )
+
+                        # Create calendar event with attendees
+                        self.calendar_service.create_event(
+                            attendees=attendees, **reservation
+                        )
                         print(
                             f"[bold green]✓[/bold green] [bold cyan]Event created for reservation {confirmation_code}[/bold cyan]\n"
                         )
