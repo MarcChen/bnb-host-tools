@@ -1,15 +1,14 @@
 import datetime
+import logging
 import os
 
 import pandas as pd
 import requests
 from ics import Calendar
 from notion_client import Client
-import logging
 
 logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s %(levelname)s %(name)s %(message)s"
+    level=logging.DEBUG, format="%(asctime)s %(levelname)s %(name)s %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -32,7 +31,9 @@ def fetch_blocked_days_from_airbnb_ical(calendar_url: str):
 
     data = []
     for evt in blocked_events:
-        logger.debug(f"Blocked event: {evt.name}, {evt.begin.date()} to {evt.end.date()}")
+        logger.debug(
+            f"Blocked event: {evt.name}, {evt.begin.date()} to {evt.end.date()}"
+        )
         data.append(
             {
                 "start_date": evt.begin.date(),
@@ -83,7 +84,9 @@ def push_blocked_days_to_notion(calendar_url: str):
         end = row["end_date"]
 
         if (end - start).days > 7:
-            logger.debug(f"Skipping blocked period from {start} to {end} (>{(end-start).days} days)")
+            logger.debug(
+                f"Skipping blocked period from {start} to {end} (>{(end-start).days} days)"
+            )
             continue
 
         insert_date = datetime.datetime.now().isoformat()
@@ -91,7 +94,9 @@ def push_blocked_days_to_notion(calendar_url: str):
         if not any(
             str(start) in str(page) and str(end) in str(page) for page in existing_pages
         ):
-            logger.info(f"Creating Notion page for blocked period: {start} to {end}, Name: {row['Name']}")
+            logger.info(
+                f"Creating Notion page for blocked period: {start} to {end}, Name: {row['Name']}"
+            )
             notion_client.pages.create(
                 parent={"database_id": BLOCKED_DATE_DB_ID},
                 properties={
@@ -102,7 +107,9 @@ def push_blocked_days_to_notion(calendar_url: str):
                 },
             )
         else:
-            logger.debug(f"Blocked period {start} to {end} already exists in Notion, skipping.")
+            logger.debug(
+                f"Blocked period {start} to {end} already exists in Notion, skipping."
+            )
 
 
 def fetch_blocked_days_from_notion() -> pd.DataFrame:
