@@ -6,6 +6,9 @@ PROJECT_DIR="/home/marc/bnb-host-tools"
 # Change to the project directory
 cd "$PROJECT_DIR" || exit 1
 
+# Source bashrc to load environment variables and functions
+source ~/.bashrc
+
 # Set environment variables (assuming set_env_vars is a function or script)
 set_env_vars
 
