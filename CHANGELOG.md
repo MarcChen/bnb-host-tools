@@ -151,3 +151,16 @@ This pull request introduces significant enhancements to the Google Calendar int
 
 These changes enhance the robustness and reliability of the calendar service while ensuring thorough testing in real-world scenarios.
 
+## [0.4.1] - 2025-07-20
+- Merged PR #9 by @MarcChen: Fix/retrieval of blocked days
+This pull request introduces logging enhancements to the `services/dataviz/src/get_blocked_days.py` script, making it easier to debug and monitor its execution. It also includes minor dependency updates in the `pyproject.toml` file.
+
+### Logging Enhancements:
+* Added a `logging` configuration to the script, including a logger setup with `DEBUG` level logging and a specific log format. (`services/dataviz/src/get_blocked_days.py`)
+* Integrated informational and debug-level logging throughout the `fetch_blocked_days_from_airbnb_ical`, `push_blocked_days_to_notion`, and `fetch_blocked_days_from_notion` functions to log key events, such as data fetching, processing, and decision-making. [[1]](diffhunk://#diff-83d8c18ec021f089538fad23466845c703830e9ab32d71a1fd358ef2d3bcbc8aR8-R35) [[2]](diffhunk://#diff-83d8c18ec021f089538fad23466845c703830e9ab32d71a1fd358ef2d3bcbc8aR44) [[3]](diffhunk://#diff-83d8c18ec021f089538fad23466845c703830e9ab32d71a1fd358ef2d3bcbc8aR72-R94) [[4]](diffhunk://#diff-83d8c18ec021f089538fad23466845c703830e9ab32d71a1fd358ef2d3bcbc8aR104-R114) [[5]](diffhunk://#diff-83d8c18ec021f089538fad23466845c703830e9ab32d71a1fd358ef2d3bcbc8aR127) [[6]](diffhunk://#diff-83d8c18ec021f089538fad23466845c703830e9ab32d71a1fd358ef2d3bcbc8aR136-R147)
+* Replaced `print` statements with `logger.info` and `logger.error` for consistent logging, including exception handling.
+
+### Dependency Updates:
+* Updated the version specification for `lxml` to use a caret range (`^4.9.0`) for greater flexibility in dependency resolution. (`pyproject.toml`)
+* Corrected the version specification for `pandas` to align with the caret range syntax. (`pyproject.toml`)
+
