@@ -8,7 +8,7 @@ from ics import Calendar
 from notion_client import Client
 
 logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s %(levelname)s %(name)s %(message)s"
+    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
 )
 logger = logging.getLogger(__name__)
 
