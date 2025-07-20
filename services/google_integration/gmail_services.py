@@ -135,7 +135,8 @@ class GmailService:
                         part_data = part["body"].get("data", "")
                         clean_one = part_data.replace("-", "+").replace("_", "/")
                         decoded = base64.b64decode(clean_one)
-                        message_body = BeautifulSoup(decoded, "lxml").body.text
+                        soup = BeautifulSoup(decoded, "html.parser")
+                        message_body = soup.body.text if soup.body else soup.get_text()
                         break
         except Exception as e:
             print("Error processing message body:", e)
