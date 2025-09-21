@@ -164,3 +164,7 @@ This pull request introduces logging enhancements to the `services/dataviz/src/g
 * Updated the version specification for `lxml` to use a caret range (`^4.9.0`) for greater flexibility in dependency resolution. (`pyproject.toml`)
 * Corrected the version specification for `pandas` to align with the caret range syntax. (`pyproject.toml`)
 
+## [0.4.2] - 2025-09-21
+- Merged PR #10 by @MarcChen: Fix/blocked days retrieval
+
+
