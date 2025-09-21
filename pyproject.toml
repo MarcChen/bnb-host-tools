@@ -1,35 +1,33 @@
-[tool.poetry]
+[project]
 name = "bnb-host-tools"
 version = "0.0.2"
+requires-python = ">=3.10"
 description = "A set of tools for managing BnB properties efficiently."
-authors = ["Marc <128506536+MarcChen@users.noreply.github.com>"]
-packages = [
-    { include = "services" }
+dependencies = [
+    "pandas>=2.3.0,<3.0.0",
+    "google-api-python-client==2.100.0",
+    "google-auth==2.23.4",
+    "google-auth-oauthlib==1.0.0",
+    "google-auth-httplib2==0.1.0",
+    "beautifulsoup4==4.12.2",
+    "python-dateutil==2.8.2",
+    "rich==13.5.3",
+    "requests==2.31.0",
+    "notion-client>=2.3.0,<3.0.0"
 ]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-pandas = "^2.3.0"
-google-api-python-client = "2.100.0"
-google-auth = "2.23.4"
-google-auth-oauthlib = "1.0.0"
-google-auth-httplib2 = "0.1.0"
-beautifulsoup4 = "4.12.2"
-python-dateutil = "2.8.2"
-rich = "13.5.3"
-requests = "2.31.0"
-notion-client = "^2.3.0"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.0.1"
-flake8 = "^7.1.1"
-black = "^22.3.0"
-isort = "^6.0.0"
-
-[tool.poetry.group.streamlit_app.dependencies]
-streamlit = "1.46.1"
-plotly = "^5.0.0"
-ics = "^0.7"
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.1,<8.0.0",
+    "flake8>=7.1.1,<8.0.0",
+    "black>=22.3.0,<23.0.0",
+    "isort>=6.0.0,<7.0.0"
+]
+streamlit_app = [
+    "streamlit==1.46.1",
+    "plotly>=5.0.0,<6.0.0",
+    "ics>=0.7,<1.0"
+]
 
 [tool.isort]
 profile = "black"
@@ -43,5 +41,5 @@ python_files = "test_*.py"
 python_functions = "test_*"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"

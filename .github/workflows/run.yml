@@ -42,58 +42,22 @@ jobs:
             exit 1
           fi
 
-      - name: Ensure Poetry in PATH (install if missing)
+      - name: Install uv (fast Python installer)
         shell: bash
         run: |
-          if command -v poetry &>/dev/null; then
-            echo "Poetry is already installed at $(command -v poetry)."
-          else
-            echo "Poetry not found. Installing..."
-            curl -sSL https://install.python-poetry.org | python3.10 -
+          python3.10 -m pip install --upgrade pip
+          python3.10 -m pip install uv
 
-            # Add Poetry's bin directory to PATH for the current session
-            export PATH="$HOME/.local/bin:$PATH"
-          fi
-
-          # Ensure Poetry is available in PATH
-          if command -v poetry &>/dev/null; then
-            echo "$(dirname "$(command -v poetry)")" >> $GITHUB_PATH
-          else
-            echo "ERROR: Poetry not found after installation."
-            exit 1
-          fi
-
-      - name: Validate Dependencies
+      - name: Install Dependencies with uv
         shell: bash
         run: |
-          echo "=== Checking Python 3.10 ==="
-          command -v python3.10 || { echo "Python 3.10 not found"; exit 1; }
-          python3.10 --version
-
-          echo "=== Checking Poetry ==="
-          command -v poetry || { echo "Poetry not found"; exit 1; }
-          poetry --version
-
-          echo "=== Running poetry check ==="
-          poetry check
-        working-directory: ${{ github.workspace }}
-
-      - name: Set Poetry Env to Python 3.10
-        shell: bash
-        run: |
-          poetry env use python3.10
-        working-directory: ${{ github.workspace }}
-
-      - name: Install Dependencies
-        shell: bash
-        run: |
-          poetry install --without dev --with streamlit_app
+          uv pip install -r pyproject.toml --extra streamlit_app
         working-directory: ${{ github.workspace }}
 
       - name: Generate Google API Token
         shell: bash
         run: |
-          poetry run python services/google_integration/config_creds.py --save_dir .
+          uv run python3.10 services/google_integration/config_creds.py --save_dir .
         working-directory: ${{ github.workspace }}
         env:
           GOOGLE_ACCESS_TOKEN: ${{ secrets.GOOGLE_ACCESS_TOKEN }}
@@ -105,7 +69,7 @@ jobs:
         shell: bash
         run: |
           export TOKEN_PATH="${{ github.workspace }}/token.json"
-          poetry run python main.py
+          uv run python3.10 main.py
         working-directory: ${{ github.workspace }}
         env:
           NOTION_API: ${{ secrets.NOTION_API }}
