@@ -19,16 +19,11 @@ jobs:
 
       - name: Validate PR labels
         run: |
-          # Extract labels using jq
           labels=$(echo '${{ toJson(github.event.pull_request.labels) }}' | jq -r '.[].name')
-
-          # Check if no labels were found
           if [ -z "$labels" ]; then
             echo "Error: No labels found on this pull request."
             exit 1
           fi
-
-          # Check if any label matches major, minor, or patch
           if echo "$labels" | grep -Eq "^(major|minor|patch)$"; then
             echo "Valid label found: $labels"
           else
@@ -50,24 +45,20 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          export PATH="$HOME/.local/bin:$PATH"
+      - name: Install uv
+        run: python3.10 -m pip install uv
 
-      - name: Install dependencies
-        run: |
-          poetry install
+      - name: Install dependencies (including dev)
+        run: uv pip install -r pyproject.toml --system --extra dev
 
       - name: Check code formatting and linting
         run: |
-          poetry run black --check .
-          poetry run flake8 .
-          poetry run isort --check-only .
-
+          uv run black --check .
+          uv run flake8 .
+          uv run isort --check-only .
+  
       - name: Run pytest for unit tests
-        run: |
-          poetry run pytest tests/unit --maxfail=1
+        run: uv run pytest tests/unit --maxfail=1
 
       # # Upload pytest results (optional)
       # - name: Upload test results

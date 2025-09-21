@@ -6,6 +6,8 @@ exclude =
     __pycache__,
     build,
     dist,
-    *.egg-info
+    *.egg-info,
+    .venv,
+    venv
 
 max-complexity = 10
