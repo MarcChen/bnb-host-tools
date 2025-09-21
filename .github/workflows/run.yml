@@ -51,7 +51,7 @@ jobs:
       - name: Install Dependencies with uv
         shell: bash
         run: |
-          uv pip install -r pyproject.toml --extra streamlit_app
+          uv pip install -r pyproject.toml --system --extra streamlit_app
         working-directory: ${{ github.workspace }}
 
       - name: Generate Google API Token
@@ -74,4 +74,15 @@ jobs:
         env:
           NOTION_API: ${{ secrets.NOTION_API }}
           DATABASE_ID: ${{ secrets.DATABASE_ID }}
+          PROJECT_ROOT: ${{ github.workspace }}
+
+      - name: Retrieve blocked days 
+        shell: bash
+        run: |
+          uv run python3.10 services/dataviz/src/get_blocked_days.py
+        working-directory: ${{ github.workspace }}
+        env:
+          NOTION_API: ${{ secrets.NOTION_API }}
+          BLOCKED_DATE_DB_ID: ${{ secrets.BLOCKED_DATE_DB_ID }}
+          CALENDAR_URL: ${{ secrets.CALENDAR_URL }}
           PROJECT_ROOT: ${{ github.workspace }}
