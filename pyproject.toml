@@ -29,8 +29,12 @@ streamlit_app = [
     "plotly>=5.0.0,<6.0.0",
 ]
 
+[tool.flake8]
+config = ".flake8"
+
 [tool.isort]
 profile = "black"
+skip = [".venv", "venv"]
 
 [tool.pytest.ini_options]
 markers = [
