@@ -2,7 +2,6 @@ import datetime
 import logging
 import os
 
-import pandas as pd
 import requests
 from ics import Calendar
 from notion_client import Client
@@ -41,45 +40,21 @@ def fetch_blocked_days_from_airbnb_ical(calendar_url: str):
                 "Name": evt.name,
             }
         )
-    df_blocked = pd.DataFrame(data)
-    logger.info(f"Returning DataFrame with {len(df_blocked)} blocked days")
-    return df_blocked
+    logger.info(f"Returning list with {len(data)} blocked days")
+    return data
 
 
 def push_blocked_days_to_notion(calendar_url: str):
-    """
-    Pushes blocked day entries from an Airbnb iCal URL to a Notion database.
-
-    This function fetches blocked dates from an Airbnb calendar by retrieving data
-    from the provided calendar URL and then checks against existing entries in a
-    Notion database. For each blocked day record that meets specific criteria (e.g.
-    duration of block does not exceed 7 days), it creates a new page in the Notion
-    database with the provided details.
-
-    Parameters:
-        calendar_url (str):
-            The URL of the Airbnb calendar in iCal format from which to fetch blocked dates.
-
-    Side Effects:
-        - Queries and creates pages in a Notion database. Existing pages already present
-          with the same start and end dates will not be duplicated.
-        - Skips inserting records for blocked periods longer than 7 days.
-        - The function uses the current timestamp as the insertion date for newly created pages.
-
-    Raises:
-        Any exceptions raised by the underlying Notion client upon failure to execute database
-        queries or page creation may propagate up to the caller.
-    """
     logger.info("Pushing blocked days to Notion database")
     notion_client = Client(auth=TOKEN)
-    df_blocked = fetch_blocked_days_from_airbnb_ical(calendar_url)
-    logger.debug(f"Fetched {len(df_blocked)} blocked days from Airbnb iCal")
+    blocked_days = fetch_blocked_days_from_airbnb_ical(calendar_url)
+    logger.debug(f"Fetched {len(blocked_days)} blocked days from Airbnb iCal")
     existing_pages = notion_client.databases.query(database_id=BLOCKED_DATE_DB_ID).get(
         "results", []
     )
     logger.info(f"Fetched {len(existing_pages)} existing pages from Notion database")
 
-    for _, row in df_blocked.iterrows():
+    for row in blocked_days:
         start = row["start_date"]
         end = row["end_date"]
 
@@ -112,7 +87,7 @@ def push_blocked_days_to_notion(calendar_url: str):
             )
 
 
-def fetch_blocked_days_from_notion() -> pd.DataFrame:
+def fetch_blocked_days_from_notion():
     logger.info("Fetching blocked days from Notion database")
     notion_client = Client(auth=TOKEN)
     pages = notion_client.databases.query(database_id=BLOCKED_DATE_DB_ID).get(
@@ -140,8 +115,8 @@ def fetch_blocked_days_from_notion() -> pd.DataFrame:
                 "Insert Date": insert_date,
             }
         )
-    logger.info(f"Returning DataFrame with {len(data)} blocked days from Notion")
-    return pd.DataFrame(data)
+    logger.info(f"Returning list with {len(data)} blocked days from Notion")
+    return data
 
 
 if __name__ == "__main__":
