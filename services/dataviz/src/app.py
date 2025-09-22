@@ -1,6 +1,7 @@
+from datetime import datetime
+
 import plotly.express as px
 import streamlit as st
-from datetime import datetime
 
 from services.notion_client.notion_api_client import NotionClient
 
@@ -9,7 +10,7 @@ from services.notion_client.notion_api_client import NotionClient
 # DATA FETCHING & CACHING
 # -----------------------------
 @st.cache_data(ttl=3600 * 24)
-def fetch_data_from_notion():
+def fetch_data_from_notion():  # noqa: C901
     """Fetch data from Notion via the client and return a cleaned list of dicts."""
     notion_client = NotionClient()
     pages = notion_client.get_all_pages()
@@ -68,7 +69,11 @@ st.write(
 years = sorted({row["Arrival Date"].year for row in data if row.get("Arrival Date")})
 if years:
     selected_year = st.selectbox("Select Year", options=years)
-    filtered = [row for row in data if row.get("Arrival Date") and row["Arrival Date"].year == selected_year]
+    filtered = [
+        row
+        for row in data
+        if row.get("Arrival Date") and row["Arrival Date"].year == selected_year
+    ]
 else:
     st.error("No valid 'Arrival Date' data found.")
     filtered = data.copy()
@@ -98,10 +103,30 @@ for row in filtered:
 
 grouped_melted = []
 for nights, payouts in grouped.items():
-    host_avg = sum(payouts["Host Payout"]) / len(payouts["Host Payout"]) if payouts["Host Payout"] else 0
-    guest_avg = sum(payouts["Guest Payout"]) / len(payouts["Guest Payout"]) if payouts["Guest Payout"] else 0
-    grouped_melted.append({"Number of Nights": nights, "Payout Type": "Host Payout", "Average Payout": host_avg})
-    grouped_melted.append({"Number of Nights": nights, "Payout Type": "Guest Payout", "Average Payout": guest_avg})
+    host_avg = (
+        sum(payouts["Host Payout"]) / len(payouts["Host Payout"])
+        if payouts["Host Payout"]
+        else 0
+    )
+    guest_avg = (
+        sum(payouts["Guest Payout"]) / len(payouts["Guest Payout"])
+        if payouts["Guest Payout"]
+        else 0
+    )
+    grouped_melted.append(
+        {
+            "Number of Nights": nights,
+            "Payout Type": "Host Payout",
+            "Average Payout": host_avg,
+        }
+    )
+    grouped_melted.append(
+        {
+            "Number of Nights": nights,
+            "Payout Type": "Guest Payout",
+            "Average Payout": guest_avg,
+        }
+    )
 
 fig1 = px.bar(
     grouped_melted,
@@ -123,7 +148,11 @@ if all("Arrival Date" in row and "Price by night" in row for row in filtered):
         else:
             row["month_year"] = None
     fig2 = px.box(
-        [row for row in filtered if row.get("month_year") and row.get("Price by night") is not None],
+        [
+            row
+            for row in filtered
+            if row.get("month_year") and row.get("Price by night") is not None
+        ],
         x="month_year",
         y="Price by night",
         title="Box Plot: Nightly Price Distribution by Month (Based on Arrival Date)",
@@ -145,7 +174,11 @@ if all("Arrival Date" in row and "Number of Nights" in row for row in filtered):
         else:
             row["month"] = None
     fig3 = px.box(
-        [row for row in filtered if row.get("month") and row.get("Number of Nights") is not None],
+        [
+            row
+            for row in filtered
+            if row.get("month") and row.get("Number of Nights") is not None
+        ],
         x="month",
         y="Number of Nights",
         title="Box Plot: Number of Nights by Month (Arrival Date)",
