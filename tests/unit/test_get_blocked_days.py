@@ -1,70 +1,77 @@
 import datetime
+import pytest
+from unittest.mock import patch, MagicMock
 
-import pandas as pd
-import requests
-
-# Import the module to test
 from services.dataviz.src import get_blocked_days
 
 
-# Dummy classes to simulate calendar events and datetime objects
-class DummyDt:
-    def __init__(self, date_val):
-        self._date = date_val
+def test_fetch_blocked_days_from_airbnb_ical_parses_events():
+    fake_ical = """
+BEGIN:VCALENDAR
+BEGIN:VEVENT
+SUMMARY:Airbnb (Not available)
+DTSTART;VALUE=DATE:20230901
+DTEND;VALUE=DATE:20230903
+END:VEVENT
+END:VCALENDAR
+"""
+    with patch("services.dataviz.src.get_blocked_days.requests.get") as mock_get, \
+         patch("services.dataviz.src.get_blocked_days.Calendar") as mock_calendar:
+        mock_get.return_value.text = fake_ical
+        mock_get.return_value.raise_for_status = lambda: None
 
-    def date(self):
-        return self._date
+        mock_event = MagicMock()
+        mock_event.name = "Airbnb (Not available)"
+        mock_event.begin.date.return_value = datetime.date(2023, 9, 1)
+        mock_event.end.date.return_value = datetime.date(2023, 9, 3)
+        mock_calendar.return_value.events = [mock_event]
 
+        result = get_blocked_days.fetch_blocked_days_from_airbnb_ical("http://fake-url")
+        assert result == [{
+            "start_date": datetime.date(2023, 9, 1),
+            "end_date": datetime.date(2023, 9, 3),
+            "Name": "Airbnb (Not available)"
+        }]
 
-class DummyEvent:
-    def __init__(self, name, begin, end):
-        self.name = name
-        self.begin = begin
-        self.end = end
-
-
-class DummyCalendar:
-    def __init__(self, text):
-        # Create one event that matches and one that doesn't
-        self.events = [
-            DummyEvent(
-                "Airbnb (Not available)",
-                DummyDt(datetime.date(2023, 10, 10)),
-                DummyDt(datetime.date(2023, 10, 11)),
-            ),
-            DummyEvent(
-                "Other event",
-                DummyDt(datetime.date(2023, 10, 12)),
-                DummyDt(datetime.date(2023, 10, 13)),
-            ),
+@patch("services.dataviz.src.get_blocked_days.Client")
+def test_fetch_blocked_days_from_notion_parses_pages(mock_client):
+    mock_notion = MagicMock()
+    mock_client.return_value = mock_notion
+    mock_notion.databases.query.return_value = {
+        "results": [
+            {
+                "properties": {
+                    "Start Date": {"date": {"start": "2023-09-01"}},
+                    "End Date": {"date": {"start": "2023-09-03"}},
+                    "Name": {"title": [{"text": {"content": "Airbnb (Not available)"}}]},
+                    "Insert Date": {"date": {"start": "2023-09-01T12:00:00"}},
+                }
+            }
         ]
+    }
+    result = get_blocked_days.fetch_blocked_days_from_notion()
+    assert result == [{
+        "start_date": "2023-09-01",
+        "end_date": "2023-09-03",
+        "Name": "Airbnb (Not available)",
+        "Insert Date": "2023-09-01T12:00:00"
+    }]
 
+@patch("services.dataviz.src.get_blocked_days.Client")
+@patch("services.dataviz.src.get_blocked_days.fetch_blocked_days_from_airbnb_ical")
+def test_push_blocked_days_to_notion_creates_new_pages(mock_fetch, mock_client):
+    mock_notion = MagicMock()
+    mock_client.return_value = mock_notion
+    mock_notion.databases.query.return_value = {"results": []}
+    mock_fetch.return_value = [{
+        "start_date": datetime.date(2023, 9, 1),
+        "end_date": datetime.date(2023, 9, 3),
+        "Name": "Airbnb (Not available)"
+    }]
+    get_blocked_days.BLOCKED_DATE_DB_ID = "fake_db_id"
+    get_blocked_days.TOKEN = "fake_token"
+    get_blocked_days.push_blocked_days_to_notion("http://fake-url")
+    assert mock_notion.pages.create.called
 
-class DummyResponse:
-    def __init__(self, text):
-        self.text = text
-
-    def raise_for_status(self):
-        pass
-
-
-def dummy_get(url):
-    return DummyResponse("dummy calendar text")
-
-
-def test_fetch_blocked_days(monkeypatch):
-    # Patch requests.get
-    monkeypatch.setattr(requests, "get", dummy_get)
-
-    # Patch Calendar in the module with our DummyCalendar
-    monkeypatch.setattr(get_blocked_days, "Calendar", DummyCalendar)
-
-    df = get_blocked_days.fetch_blocked_days_from_airbnb_ical("http://dummy-url")
-
-    # Assert only one event (matching the "Airbnb (Not available)" string) is returned
-    assert isinstance(df, pd.DataFrame)
-    assert df.shape[0] == 1
-    row = df.iloc[0]
-    assert row["start_date"] == datetime.date(2023, 10, 10)
-    assert row["end_date"] == datetime.date(2023, 10, 11)
-    assert row["Name"] == "Airbnb (Not available)"
+if __name__ == "__main__":
+    pytest.main(["-v", __file__])

@@ -1,6 +1,6 @@
-import pandas as pd
 import plotly.express as px
 import streamlit as st
+from datetime import datetime
 
 from services.notion_client.notion_api_client import NotionClient
 
@@ -10,20 +10,23 @@ from services.notion_client.notion_api_client import NotionClient
 # -----------------------------
 @st.cache_data(ttl=3600 * 24)
 def fetch_data_from_notion():
-    """Fetch data from Notion via the client and return a cleaned DataFrame."""
+    """Fetch data from Notion via the client and return a cleaned list of dicts."""
     notion_client = NotionClient()
     pages = notion_client.get_all_pages()
     data = [notion_client.parse_page(page) for page in pages]
-    df = pd.DataFrame(data)
 
     # Convert date columns to datetime
-    for col in ["Arrival Date", "Departure Date", "Mail Date", "Insert Date"]:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors="coerce")
+    date_cols = ["Arrival Date", "Departure Date", "Mail Date", "Insert Date"]
+    for row in data:
+        for col in date_cols:
+            if col in row and row[col]:
+                try:
+                    row[col] = datetime.fromisoformat(str(row[col]))
+                except Exception:
+                    row[col] = None
 
     # Ensure numeric columns are properly converted.
-    # Adjust the list below if needed.
-    for col in [
+    num_cols = [
         "Host Service Fee",
         "Guest Service Fee",
         "Total Nights Cost",
@@ -33,11 +36,16 @@ def fetch_data_from_notion():
         "Tourist Tax",
         "Price by night",
         "Number of Nights",
-    ]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+    ]
+    for row in data:
+        for col in num_cols:
+            if col in row and row[col] is not None:
+                try:
+                    row[col] = float(row[col])
+                except Exception:
+                    row[col] = None
 
-    return df
+    return data
 
 
 # Button to refresh data manually (which clears the cache)
@@ -46,7 +54,7 @@ if st.button("Refresh Data"):
     st.rerun()
 
 # Fetch (or load cached) data
-df = fetch_data_from_notion()
+data = fetch_data_from_notion()
 
 # -----------------------------
 # GLOBAL FILTERS
@@ -57,44 +65,43 @@ st.write(
 )
 
 # Create a global year filter based on the "Arrival Date"
-if "Arrival Date" in df.columns:
-    df["year"] = df["Arrival Date"].dt.year
-    available_years = sorted(df["year"].dropna().unique())
-    if available_years:
-        selected_year = st.selectbox("Select Year", options=available_years)
-        df_filtered = df[df["year"] == selected_year].copy()
-    else:
-        st.error("No valid 'Arrival Date' data found.")
-        df_filtered = df.copy()
+years = sorted({row["Arrival Date"].year for row in data if row.get("Arrival Date")})
+if years:
+    selected_year = st.selectbox("Select Year", options=years)
+    filtered = [row for row in data if row.get("Arrival Date") and row["Arrival Date"].year == selected_year]
 else:
-    st.error("'Arrival Date' column is missing from the data.")
-    df_filtered = df.copy()
+    st.error("No valid 'Arrival Date' data found.")
+    filtered = data.copy()
 
 # -----------------------------
 # GRAPH 1: Average Payouts vs. Number of Nights
 # -----------------------------
 st.subheader("Average Payouts vs. Number of Nights")
 
-# Make sure the necessary columns are available and numeric.
+# Check required columns
 for col in ["Number of Nights", "Host Payout", "Guest Payout"]:
-    if col not in df_filtered.columns:
+    if not all(col in row for row in filtered):
         st.error(f"Column '{col}' is missing from the data.")
         st.stop()
 
 # Group by Number of Nights and compute average payouts.
-grouped = (
-    df_filtered.groupby("Number of Nights")
-    .agg({"Host Payout": "mean", "Guest Payout": "mean"})
-    .reset_index()
-)
+grouped = {}
+for row in filtered:
+    nights = row.get("Number of Nights")
+    if nights is not None:
+        if nights not in grouped:
+            grouped[nights] = {"Host Payout": [], "Guest Payout": []}
+        if row.get("Host Payout") is not None:
+            grouped[nights]["Host Payout"].append(row["Host Payout"])
+        if row.get("Guest Payout") is not None:
+            grouped[nights]["Guest Payout"].append(row["Guest Payout"])
 
-# Reshape for a grouped bar chart.
-grouped_melted = grouped.melt(
-    id_vars="Number of Nights",
-    value_vars=["Host Payout", "Guest Payout"],
-    var_name="Payout Type",
-    value_name="Average Payout",
-)
+grouped_melted = []
+for nights, payouts in grouped.items():
+    host_avg = sum(payouts["Host Payout"]) / len(payouts["Host Payout"]) if payouts["Host Payout"] else 0
+    guest_avg = sum(payouts["Guest Payout"]) / len(payouts["Guest Payout"]) if payouts["Guest Payout"] else 0
+    grouped_melted.append({"Number of Nights": nights, "Payout Type": "Host Payout", "Average Payout": host_avg})
+    grouped_melted.append({"Number of Nights": nights, "Payout Type": "Guest Payout", "Average Payout": guest_avg})
 
 fig1 = px.bar(
     grouped_melted,
@@ -109,13 +116,14 @@ st.plotly_chart(fig1, use_container_width=True)
 # -----------------------------
 # GRAPH 2: Box Plot of Nightly Price Distribution by Month
 # -----------------------------
-if "Arrival Date" in df_filtered.columns and "Price by night" in df_filtered.columns:
-    df_filtered.loc[:, "month_year"] = (
-        df_filtered["Arrival Date"].dt.to_period("M").astype(str)
-    )
-    # Create a box plot showing the distribution of nightly prices for each month
+if all("Arrival Date" in row and "Price by night" in row for row in filtered):
+    for row in filtered:
+        if row.get("Arrival Date"):
+            row["month_year"] = row["Arrival Date"].strftime("%Y-%m")
+        else:
+            row["month_year"] = None
     fig2 = px.box(
-        df_filtered,
+        [row for row in filtered if row.get("month_year") and row.get("Price by night") is not None],
         x="month_year",
         y="Price by night",
         title="Box Plot: Nightly Price Distribution by Month (Based on Arrival Date)",
@@ -130,12 +138,14 @@ else:
 # -----------------------------
 st.subheader("Distribution of Number of Nights by Month")
 
-if "Arrival Date" in df_filtered.columns and "Number of Nights" in df_filtered.columns:
-    # Extract month name
-    df_filtered.loc[:, "month"] = df_filtered["Arrival Date"].dt.strftime("%B")
-
+if all("Arrival Date" in row and "Number of Nights" in row for row in filtered):
+    for row in filtered:
+        if row.get("Arrival Date"):
+            row["month"] = row["Arrival Date"].strftime("%B")
+        else:
+            row["month"] = None
     fig3 = px.box(
-        df_filtered,
+        [row for row in filtered if row.get("month") and row.get("Number of Nights") is not None],
         x="month",
         y="Number of Nights",
         title="Box Plot: Number of Nights by Month (Arrival Date)",
