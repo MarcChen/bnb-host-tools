@@ -168,3 +168,7 @@ This pull request introduces logging enhancements to the `services/dataviz/src/g
 - Merged PR #10 by @MarcChen: Fix/blocked days retrieval
 
 
+## [0.4.3] - 2025-09-22
+- Merged PR #11 by @MarcChen: refactor: remove pandas dependency and update data handling 
+
+
